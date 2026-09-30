@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {
+      "tenantId": "acme",
+      "issuerSlug": "acme",
+      "credentialSchemas": ["oid4vci-seed-credential.json"],
+      "proofSchemas": ["oid4vp-seed-proof.json"]
+    }
+  ]
+}

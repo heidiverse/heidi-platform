@@ -1,0 +1,61 @@
+<!doctype html>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<html>
+  <head>
+    <title>Heidi Integrator API</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script type="module">
+      import { apiDocsUrl } from "/src/lib/api-docs";
+
+      const buildTimeApiBaseUrl =
+        import.meta.env.VITE_HEIDI_API_BASE_URL ?? "";
+      const apiDocsMode = import.meta.env.DEV ? "development" : "production";
+
+      const fallbackApiDocsUrl = buildTimeApiBaseUrl
+        ? apiDocsUrl(buildTimeApiBaseUrl, apiDocsMode)
+        : "/api-docs/integrator";
+
+      let openApiUrl = fallbackApiDocsUrl;
+
+      try {
+        const response = await fetch(`/config.json?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const config = await response.json();
+          if (
+            typeof config.heidiApiBaseUrl === "string" &&
+            config.heidiApiBaseUrl.length > 0
+          ) {
+            openApiUrl = apiDocsUrl(config.heidiApiBaseUrl, apiDocsMode);
+          }
+        }
+      } catch {
+        // The build-time URL or same-origin fallback remains usable in local setups.
+      }
+
+      const apiReference = document.createElement("script");
+      apiReference.id = "api-reference";
+      apiReference.dataset.url = openApiUrl;
+      apiReference.dataset.configuration = JSON.stringify({
+        hideTestRequestButton: true,
+        defaultHttpClient: {
+          targetKey: "shell",
+          clientKey: "curl",
+        },
+      });
+      document.body.append(apiReference);
+
+      const scalar = document.createElement("script");
+      scalar.src = "https://cdn.jsdelivr.net/npm/@scalar/api-reference";
+      document.body.append(scalar);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,479 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.heidiverse.heidi.platformapi</groupId>
+    <artifactId>heidi-platform-api</artifactId>
+    <packaging>pom</packaging>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Heidi Platform API</name>
+    <description>Combined backend API for Heidi coordinator and entity services.</description>
+    <url>https://github.com/UbiqueInnovation/heidi-platform</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>ubique</id>
+            <name>Ubique Innovation AG</name>
+            <organization>Ubique Innovation AG</organization>
+            <organizationUrl>https://www.ubique.ch</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/UbiqueInnovation/heidi-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/UbiqueInnovation/heidi-platform.git</developerConnection>
+        <url>https://github.com/UbiqueInnovation/heidi-platform</url>
+    </scm>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <sentry-version>8.56.0</sentry-version>
+        <kapunsdk.version>1.0.0-RC15</kapunsdk.version>
+
+    </properties>
+
+    <modules>
+        <module>../heidi-shared-backend</module>
+        <module>heidi-coordinator-model</module>
+        <module>heidi-coordinator-data</module>
+        <module>heidi-coordinator-service</module>
+        <module>heidi-entity-model</module>
+        <module>heidi-entity-data</module>
+        <module>heidi-entity-oca-service</module>
+        <module>heidi-entity-service</module>
+        <module>heidi-platform-extension-api</module>
+        <module>heidi-platform-data</module>
+        <module>heidi-platform-api-ws</module>
+
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.heidiverse.heidi.shared</groupId>
+            <artifactId>heidi-shared-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.shared</groupId>
+            <artifactId>heidi-signing-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Spring Boot -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Mustache -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+            <version>0.9.14</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-docker-compose</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Ubique Heidi -->
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-dcql-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-credentials-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-presentation-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-wallet-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-visualization-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.19.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
+        <!-- Testcontainers -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-logging</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>jcl-over-slf4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-spring-boot-4-starter</artifactId>
+            <version>${sentry-version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-logback</artifactId>
+            <version>${sentry-version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.zalando</groupId>
+            <artifactId>logbook-httpclient5</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.zalando</groupId>
+            <artifactId>logbook-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.zalando</groupId>
+            <artifactId>logbook-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- Used to read maven artifact versions, i.e. the version of the backend lib used -->
+        <dependency>
+            <groupId>de.westemeyer</groupId>
+            <artifactId>artifact-version-service</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+
+        <!-- Apache Commons -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.22.0</version>
+        </dependency>
+
+        <!-- metrics dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- Bouncycastle  -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.86</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.86</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.crypto.tink</groupId>
+            <artifactId>tink</artifactId>
+            <version>1.23.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.android.identity</groupId>
+            <artifactId>identity-jvm</artifactId>
+            <version>202411.1</version>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.zalando</groupId>
+                <artifactId>logbook-bom</artifactId>
+                <version>4.1.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.1.3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>osgeo</id>
+            <name>Open Source Geospatial Foundation Repository</name>
+            <url>https://repo.osgeo.org/repository/release/</url>
+        </repository>
+        <repository>
+            <id>google</id>
+            <name>Google Maven Repository</name>
+            <url>https://maven.google.com/</url>
+        </repository>
+    </repositories>
+
+    <build>
+        <plugins>
+            <!-- Used to read maven artifact versions, i.e. the version of the backend lib used -->
+            <plugin>
+                <groupId>de.westemeyer</groupId>
+                <artifactId>artifact-version-maven-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate-service</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.2</version>
+                <executions>
+                    <execution>
+                        <id>add-artifact-version-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>target/generated-sources/artifact-versions</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>${argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>build-info</id>
+                            <goals>
+                                <goal>build-info</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>3.5.2</version>
+
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.google.cloud.tools</groupId>
+                            <artifactId>jib-spring-boot-extension-maven</artifactId>
+                            <version>0.1.0</version>
+                        </dependency>
+                    </dependencies>
+
+                    <configuration>
+                        <pluginExtensions>
+                            <pluginExtension>
+                                <implementation>
+                                    com.google.cloud.tools.jib.maven.extension.springboot.JibSpringBootExtension
+                                </implementation>
+                            </pluginExtension>
+                        </pluginExtensions>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>central-release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.11.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

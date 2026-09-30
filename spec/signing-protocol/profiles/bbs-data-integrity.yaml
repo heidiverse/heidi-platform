@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.1.0
+info:
+  title: Heidi Signing Protocol — BBS Data Integrity profile
+  version: 1.0.0-experimental
+  description: |
+    Experimental profile for W3C BBS Data Integrity credential issuance. This profile extends the
+    generic `/operations` endpoint; it is intentionally kept outside the core protocol definition.
+
+x-heidi-signing-operation:
+  operation: w3c.bbs-data-integrity-credential-issuance
+  algorithm: BBS
+  capability: supportedOperations
+  key:
+    publicKeyDocument: Provider-specific BBS public-key document
+    privateMaterial: Never sent to the caller
+
+x-heidi-signing-operations:
+  - operation: w3c.bbs-data-integrity-presentation-setup
+    capability: keylessOperations
+    key: none
+
+paths:
+  /operations:
+    post:
+      summary: Issue a BBS Data Integrity credential
+      description: |
+        Use the generic operation request and response envelope from `../openapi.yaml`. The
+        provider must advertise this operation and `BBS` in `/capabilities` before it is used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: ../openapi.yaml#/components/schemas/OperationRequest
+                - type: object
+                  properties:
+                    input:
+                      $ref: '#/components/schemas/BbsCredentialInput'
+            example:
+              operation: w3c.bbs-data-integrity-credential-issuance
+              keyUri: next-gen://tenant/key
+              input:
+                algorithm: BBS
+                claims:
+                  '@id': did:example:card:1.0.0
+                  name:
+                    '@value': Alice
+                issuerId: did:example:issuer
+                issuerKeyId: did:example:issuer#key-1
+                credentialType: ExampleCredential
+                deviceBinding:
+                  x: base64-x-coordinate
+                  y: base64-y-coordinate
+      responses:
+        '200':
+          description: Completed credential
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: ../openapi.yaml#/components/schemas/OperationResponse
+                  - type: object
+                    properties:
+                      result:
+                        $ref: '#/components/schemas/BbsCredentialResult'
+              example:
+                operation: w3c.bbs-data-integrity-credential-issuance
+                status: COMPLETED
+                result:
+                  credential: encoded-bbs-credential
+
+components:
+  schemas:
+    BbsCredentialInput:
+      type: object
+      required: [algorithm, claims, issuerId, issuerKeyId]
+      properties:
+        algorithm:
+          const: BBS
+        claims:
+          type: object
+          description: JSON-LD claims to include in the credential.
+          additionalProperties: true
+        issuerId: { type: string }
+        issuerKeyId: { type: string }
+        credentialType: { type: string }
+        deviceBinding:
+          type: object
+          required: [x, y]
+          properties:
+            x: { type: string, format: byte, description: Base64-encoded P-256 public-key x coordinate. }
+            y: { type: string, format: byte, description: Base64-encoded P-256 public-key y coordinate. }
+
+    BbsCredentialResult:
+      type: object
+      required: [credential]
+      properties:
+        credential: { type: string }
+
+    BbsPresentationSetupInput:
+      type: object
+      required: [requirements]
+      properties:
+        requirements:
+          type: array
+          description: Disclosure and predicate requirements used to generate the circuits.
+          items:
+            type: object
+            additionalProperties: true
+
+    BbsPresentationSetupResult:
+      type: object
+      required: [provingKeys, verifyingKeys]
+      properties:
+        provingKeys:
+          type: object
+          additionalProperties: true
+        verifyingKeys:
+          type: object
+          additionalProperties: true

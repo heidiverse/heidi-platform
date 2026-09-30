@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Compiled class file
+*.class
+
+# IDE and build metadata
+*.iml
+**/.project
+**/.classpath
+**/classpath-data.json
+**/.settings/
+**/.factorypath
+
+# Log file
+*.log
+*.log.*
+log_file
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+!gradle-wrapper.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+
+# Local environment files
+.env
+.env.*
+!**/.env.*.example
+.local/
+*.p12
+*.local
+
+# Common generated output
+**/target/
+**/build/
+**/.gradle/
+**/.kotlin/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+site/
+.pnpm-store/
+*.tsbuildinfo
+tmp/conformance/
+**/.venv/
+__pycache__/
+secrets.py
+**/import
+
+# Editor directories and files
+**/.vscode/*
+!heidi-web/**/.vscode/extensions.json
+!heidi-web/**/.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# intellij stuff. Keep shared run configurations and database connections.
+**/.idea/*
+!/.idea/runConfigurations/
+!/.idea/dataSources.xml
+!heidi-issuer-backend/**/.idea/google-java-format.xml
+!heidi-verifier-backend/**/.idea/google-java-format.xml
+
+# Extension overlay. Builds that carry features beyond the open-source set check
+# their own repository in here; the public repository never contains it.
+heidi-web/overlay/
+*.DS_Store
+
+# Isolated local directories
+/.venv-docs/**
+/.github/modernize/java-upgrade/**

@@ -1,0 +1,23 @@
+<!doctype html>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<html lang="de" class="h-full antialiased">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="%VITE_HEIDI_WEB_APP_ICON%" />
+    <link rel="manifest" href="/assets/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="%VITE_HEIDI_WEB_THEME_COLOR%" />
+    <meta name="application-name" content="%VITE_HEIDI_WEB_HTML_TITLE%" />
+    <title>%VITE_HEIDI_WEB_HTML_TITLE%</title>
+  </head>
+  <body
+    class="h-full bg-background text-foreground selection:bg-glacier selection:text-white"
+  >
+    <div id="heidi-root" class="h-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

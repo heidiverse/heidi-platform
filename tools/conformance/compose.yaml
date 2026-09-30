@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  mongodb:
+    image: mongo:6.0.13
+    networks:
+      - conformance
+
+  server:
+    image: registry.gitlab.com/openid/conformance-suite:${CONFORMANCE_SUITE_TAG:-release-v5.2.2}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - conformance
+    depends_on:
+      - mongodb
+    environment:
+      DEVMODE: "true"
+    entrypoint:
+      - java
+      - -jar
+      - /server/fapi-test-suite.jar
+      - -Djdk.tls.maxHandshakeMessageSize=65536
+      - --fintechlabs.base_url=https://host.docker.internal:${CONFORMANCE_SUITE_PORT:-8443}
+      - --fintechlabs.devmode=true
+
+  nginx:
+    image: registry.gitlab.com/openid/conformance-suite/nginx:${CONFORMANCE_SUITE_TAG:-release-v5.2.2}
+    networks:
+      - conformance
+    depends_on:
+      - server
+    environment:
+      OIDC_GITLAB_CLIENTID: heidi-conformance-client
+      OIDC_GITLAB_CLIENTSECRET: heidi-conformance-secret
+    ports:
+      - ${CONFORMANCE_SUITE_PORT:-8443}:8443
+      - ${CONFORMANCE_SUITE_MTLS_PORT:-8444}:8444
+      - ${CONFORMANCE_SUITE_REDIRECT_PORT:-8445}:8445
+
+networks:
+  conformance:

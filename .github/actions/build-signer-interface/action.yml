@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build signer interface
+description: >
+  Builds org.heidiverse:heidi-software-signerinterface-jvm from source into the
+  runner's local Maven repository and uploads it as an artifact, so that consumer
+  jobs can install it with the install-signer-interface action instead of
+  repeating this build.
+
+inputs:
+  artifact-name:
+    description: Name of the uploaded artifact.
+    required: false
+    default: signer-interface-m2
+  retention-days:
+    description: How long to keep the uploaded artifact.
+    required: false
+    default: "1"
+
+runs:
+  using: composite
+  steps:
+    # Must match jvmToolchain() in heidi-signing-crypto/build.gradle.kts:
+    # the jar is consumed by Java 21 reactors and a newer class file version
+    # would not be readable by them.
+    - name: Set up Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: "21"
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      with:
+        gradle-version: "9.3.1"
+
+    # Both crates share one target directory to avoid duplicating Rust deps.
+    - name: Cache Cargo
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          heidi-signing-crypto/target
+        key: cargo-shared-${{ runner.os }}-${{ hashFiles('heidi-signing-crypto/heidi-signing/Cargo.lock', 'heidi-signing-crypto/heidi-expression/Cargo.lock') }}
+        restore-keys: |
+          cargo-shared-${{ runner.os }}-
+
+    - name: Publish to Maven Local
+      shell: bash
+      working-directory: heidi-signing-crypto
+      env:
+        CARGO_TARGET_DIR: ${{ github.workspace }}/heidi-signing-crypto/target
+        CARGO_PROFILE_DEV_DEBUG: "0"
+      run: gradle --no-daemon publishToMavenLocal -Dmaven.repo.local="$GITHUB_WORKSPACE/.m2repo"
+
+    - name: Stage artifacts for downstream jobs
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p signer-m2
+        cp -r "$GITHUB_WORKSPACE/.m2repo/org/heidiverse" signer-m2/
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: signer-m2
+        retention-days: ${{ inputs.retention-days }}

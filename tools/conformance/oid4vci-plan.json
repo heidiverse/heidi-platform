@@ -1,0 +1,43 @@
+{
+  "alias": "heidi-oid4vci",
+  "description": "Heidi OID4VCI 1.0 final conformance plan",
+  "publish": "everything",
+  "client": {
+    "client_id": "heidi-oidf-wallet",
+    "jwks": {
+      "keys": [
+        {
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "Gym2Ga9-WGyE3T5EJGftqE-MpMSJAD-uzGFNkzN5VW8",
+          "y": "Blxn144RNJNFKxKy4TuQFfpFoRJjC9mnraZ-I-GMpJU",
+          "d": "MvV7jTon3jtLciY4Ud_Z3GtsKh4VMRricypjL6q6mjc",
+          "use": "sig",
+          "kid": "heidi-oidf-wallet",
+          "alg": "ES256"
+        }
+      ]
+    }
+  },
+  "server": {
+    "discoveryIssuer": "${HEIDI_CONFORMANCE_CREDENTIAL_ISSUER_URL}"
+  },
+  "credential": {
+    "signing_jwk": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "Gym2Ga9-WGyE3T5EJGftqE-MpMSJAD-uzGFNkzN5VW8",
+      "y": "Blxn144RNJNFKxKy4TuQFfpFoRJjC9mnraZ-I-GMpJU",
+      "d": "MvV7jTon3jtLciY4Ud_Z3GtsKh4VMRricypjL6q6mjc",
+      "use": "sig",
+      "kid": "heidi-oidf-credential",
+      "alg": "ES256"
+    },
+    "trust_anchor_pem": "${HEIDI_CONFORMANCE_TRUST_ANCHOR_PEM}"
+  },
+  "vci": {
+    "credential_issuer_url": "${HEIDI_CONFORMANCE_CREDENTIAL_ISSUER_URL}",
+    "credential_configuration_id": "${HEIDI_CONFORMANCE_CREDENTIAL_CONFIGURATION_ID}",
+    "allow_unexpected_credential_issuer_metadata_fields": ["vct_metadata_uri"]
+  }
+}

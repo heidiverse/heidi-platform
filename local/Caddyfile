@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Local HTTP/HTTPS entrypoint. Spring and Vite stay HTTP on upstream ports.
+{
+	auto_https disable_redirects
+}
+
+(heidi_routes) {
+	encode gzip
+
+	# Never publish service-authenticated endpoints through the shared origin.
+	@internal path /internal/* /issuance/internal/* /presentation/internal/*
+	handle @internal {
+		respond 404
+	}
+
+	@private path /actuator/* /signing/*
+	handle @private {
+		respond 404
+	}
+
+	# OID4VCI's standard well-known form inserts the issuer path after the
+	# well-known segment. Restore the backend path before proxying.
+	@issuer_credential_well_known path /.well-known/openid-credential-issuer/issuance/*
+	handle @issuer_credential_well_known {
+		uri replace /.well-known/openid-credential-issuer/issuance/ /.well-known/openid-credential-issuer/
+		reverse_proxy host.docker.internal:{$HEIDI_ISSUER_PORT}
+	}
+
+	@issuer_oauth_well_known path /.well-known/oauth-authorization-server/issuance/*
+	handle @issuer_oauth_well_known {
+		uri replace /.well-known/oauth-authorization-server/issuance/ /.well-known/oauth-authorization-server/
+		reverse_proxy host.docker.internal:{$HEIDI_ISSUER_PORT}
+	}
+
+	@issuer_openid_well_known path /.well-known/openid-configuration/issuance/*
+	handle @issuer_openid_well_known {
+		uri replace /.well-known/openid-configuration/issuance/ /.well-known/openid-configuration/
+		reverse_proxy host.docker.internal:{$HEIDI_ISSUER_PORT}
+	}
+
+	@issuer_jwt_well_known path /.well-known/jwt-vc-issuer/issuance/*
+	handle @issuer_jwt_well_known {
+		uri replace /.well-known/jwt-vc-issuer/issuance/ /.well-known/jwt-vc-issuer/
+		reverse_proxy host.docker.internal:{$HEIDI_ISSUER_PORT}
+	}
+
+	# Public route families mirror the production shared-host contract.
+	@platform path /management/* /integration/* /interaction/* /public/v1/* /public/v2/* /federation/* /api-docs/* /health /healthz
+	handle @platform {
+		reverse_proxy host.docker.internal:{$HEIDI_PLATFORM_PORT}
+	}
+
+	handle_path /issuance/* {
+		reverse_proxy host.docker.internal:{$HEIDI_ISSUER_PORT}
+	}
+
+	handle_path /presentation/* {
+		reverse_proxy host.docker.internal:{$HEIDI_VERIFIER_PORT}
+	}
+
+	# Cockpit owns the root and all paths not claimed by a protocol route.
+	handle {
+		reverse_proxy host.docker.internal:{$HEIDI_WEB_PORT}
+	}
+}
+
+:80 {
+	# Bootstrap trust over HTTP. Only the public CA certificate is exposed here.
+	@ca path /ca.crt
+	handle @ca {
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=ca.crt"
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		file_server
+	}
+
+	import heidi_routes
+}
+
+{$HEIDI_PUBLIC_HOST}:443 {
+	tls internal
+
+	import heidi_routes
+}

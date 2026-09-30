@@ -1,0 +1,45 @@
+{
+  "alias": "heidi-oid4vp",
+  "description": "Heidi OID4VP 1.0 final conformance plan",
+  "publish": "everything",
+  "browser": [
+    {
+      "comment": "Capture the suite evidence page without human interaction",
+      "match": "https://*/test/a/*/verification-evidence",
+      "tasks": [
+        {
+          "task": "Capture verification evidence",
+          "match": "https://*/test/a/*/verification-evidence",
+          "commands": [
+            [
+              "wait",
+              "xpath",
+              "//*",
+              10,
+              ".*Deferred verification evidence.*",
+              "update-image-placeholder"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "credential": {
+    "signing_jwk": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "Gym2Ga9-WGyE3T5EJGftqE-MpMSJAD-uzGFNkzN5VW8",
+      "y": "Blxn144RNJNFKxKy4TuQFfpFoRJjC9mnraZ-I-GMpJU",
+      "d": "MvV7jTon3jtLciY4Ud_Z3GtsKh4VMRricypjL6q6mjc",
+      "use": "sig",
+      "kid": "heidi-oidf-credential",
+      "alg": "ES256"
+    }
+  },
+  "client": {
+    "client_id": "${HEIDI_CONFORMANCE_VERIFIER_CLIENT_ID}",
+    "authorization_encrypted_response_alg": "ECDH-ES",
+    "authorization_encrypted_response_enc": "A256GCM",
+    "request_object_trust_anchor_pem": "${HEIDI_CONFORMANCE_TRUST_ANCHOR_PEM}"
+  }
+}

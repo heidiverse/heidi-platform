@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>heidi-platform-api</artifactId>
+        <groupId>org.heidiverse.heidi.platformapi</groupId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>heidi-platform-api-ws</artifactId>
+    <name>Heidi Platform API WS</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.heidiverse.heidi.platformapi</groupId>
+            <artifactId>heidi-platform-extension-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.entity</groupId>
+            <artifactId>heidi-entity-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.entity</groupId>
+            <artifactId>heidi-entity-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.entity</groupId>
+            <artifactId>heidi-entity-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.platformapi</groupId>
+            <artifactId>heidi-platform-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.coordinator</groupId>
+            <artifactId>heidi-coordinator-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.coordinator</groupId>
+            <artifactId>heidi-coordinator-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.coordinator</groupId>
+            <artifactId>heidi-coordinator-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.13.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-root</artifactId>
+            <version>0.13.0</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.heidiverse.heidi.entity</groupId>
+            <artifactId>heidi-entity-data</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.entity</groupId>
+            <artifactId>heidi-entity-service</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.coordinator</groupId>
+            <artifactId>heidi-coordinator-data</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.coordinator</groupId>
+            <artifactId>heidi-coordinator-service</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!--
+      Product distributions may provide one independently built extension
+      bundle without adding product-specific coordinates to the OSS project.
+      The public build does not activate this profile.
+    -->
+    <profiles>
+        <profile>
+            <id>external-extension</id>
+            <activation>
+                <property>
+                    <name>heidi.extension.artifactId</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>${heidi.extension.groupId}</groupId>
+                    <artifactId>${heidi.extension.artifactId}</artifactId>
+                    <version>${heidi.extension.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

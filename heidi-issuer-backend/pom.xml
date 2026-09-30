@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.heidiverse.heidi.issuer</groupId>
+    <artifactId>heidi-issuer-backend</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>Heidi Issuer Backend</name>
+    <description>OpenID4VCI issuer for the Heidi platform, powered by Kapun SDK.</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <kotlin.version>2.4.20</kotlin.version>
+        <kotlin.jvm.target>${java.version}</kotlin.jvm.target>
+        <kapunsdk.version>1.0.0-RC15</kapunsdk.version>
+        <heidi.signerinterface.version>0.2.4</heidi.signerinterface.version>
+        <logbook.version>4.1.0</logbook.version>
+        <springdoc.version>3.1.1</springdoc.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    </properties>
+
+    <modules>
+        <module>../heidi-shared-backend</module>
+        <module>heidi-issuer-model</module>
+        <module>heidi-issuer-extension-api</module>
+        <module>heidi-issuer-data</module>
+        <module>heidi-issuer-service</module>
+        <module>heidi-issuer-ws</module>
+    </modules>
+
+        <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.zalando</groupId>
+                <artifactId>logbook-bom</artifactId>
+                <version>${logbook.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.kapunsdk</groupId>
+                <artifactId>kapun-credentials-jvm</artifactId>
+                <version>${kapunsdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.kapunsdk</groupId>
+                <artifactId>kapun-crypto-jvm</artifactId>
+                <version>${kapunsdk.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>kotlin-maven-plugin</artifactId>
+                    <version>${kotlin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>3.5.2</version>
+
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.google.cloud.tools</groupId>
+                            <artifactId>jib-spring-boot-extension-maven</artifactId>
+                            <version>0.1.0</version>
+                        </dependency>
+                    </dependencies>
+
+                    <configuration>
+                        <pluginExtensions>
+                            <pluginExtension>
+                                <implementation>
+                                    com.google.cloud.tools.jib.maven.extension.springboot.JibSpringBootExtension
+                                </implementation>
+                            </pluginExtension>
+                        </pluginExtensions>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build shared signing modules
+description: >
+  Installs core, signing contracts and the signing client into Maven local.
+  Requires the staged native crypto bindings. Used by the backend reactors.
+
+runs:
+  using: composite
+  steps:
+    - name: Install shared backend modules
+      shell: bash
+      run: mvn -B -f heidi-shared-backend/pom.xml install -DskipTests

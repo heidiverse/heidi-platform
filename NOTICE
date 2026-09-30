@@ -1,0 +1,8 @@
+Heidi Platform
+Copyright 2024-2026 Ubique Innovation AG and Heidi contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes the Gradle Wrapper (heidi-signing-crypto/gradlew,
+gradlew.bat and gradle/wrapper/gradle-wrapper.jar), copyright the original
+Gradle authors, licensed under the Apache License, Version 2.0.

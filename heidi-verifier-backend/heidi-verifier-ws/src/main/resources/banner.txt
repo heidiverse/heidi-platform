@@ -1,0 +1,16 @@
+
+          ${AnsiColor.BRIGHT_RED}▄▄██▄▄
+       ${AnsiColor.BRIGHT_RED}▄██████████▄
+   ${AnsiColor.BRIGHT_RED}▄▄████████████████▄▄     ${AnsiColor.BRIGHT_RED}██╗  ██╗███████╗██╗██████╗ ██╗
+  ${AnsiColor.BRIGHT_RED}█████████${AnsiColor.BRIGHT_WHITE}████${AnsiColor.BRIGHT_RED}█████████    ${AnsiColor.BRIGHT_RED}██║  ██║██╔════╝██║██╔══██╗██║
+  ${AnsiColor.BRIGHT_RED}█████████${AnsiColor.BRIGHT_WHITE}████${AnsiColor.BRIGHT_RED}█████████    ${AnsiColor.BRIGHT_RED}███████║█████╗  ██║██║  ██║██║
+  ${AnsiColor.BRIGHT_RED}█████${AnsiColor.BRIGHT_WHITE}████████████${AnsiColor.BRIGHT_RED}█████    ${AnsiColor.BRIGHT_RED}██╔══██║██╔══╝  ██║██║  ██║██║
+  ${AnsiColor.BRIGHT_RED}█████${AnsiColor.BRIGHT_WHITE}████████████${AnsiColor.BRIGHT_RED}█████    ${AnsiColor.BRIGHT_RED}██║  ██║███████╗██║██████╔╝██║
+  ${AnsiColor.BRIGHT_RED}█████████${AnsiColor.BRIGHT_WHITE}████${AnsiColor.BRIGHT_RED}█████████    ${AnsiColor.BRIGHT_RED}╚═╝  ╚═╝╚══════╝╚═╝╚═════╝ ╚═╝
+  ${AnsiColor.BRIGHT_RED}█████████${AnsiColor.BRIGHT_WHITE}████${AnsiColor.BRIGHT_RED}█████████
+   ${AnsiColor.BRIGHT_RED}▀▀████████████████▀▀     ${AnsiColor.BRIGHT_MAGENTA}╦  ╦╔═╗╦═╗╦╔═╗╦╔═╗╦═╗
+       ${AnsiColor.BRIGHT_RED}▀██████████▀         ${AnsiColor.BRIGHT_MAGENTA}╚╗╔╝║╣ ╠╦╝║╠╣ ║║╣ ╠╦╝
+          ${AnsiColor.BRIGHT_RED}▀▀██▀▀            ${AnsiColor.BRIGHT_MAGENTA} ╚╝ ╚═╝╩╚═╩╚  ╩╚═╝╩╚═
+${AnsiColor.BRIGHT_BLACK}  ────────────────────────────────────────────────────────
+  ${spring.application.name}${application.formatted-version}  ·  Spring Boot ${spring-boot.version}
+${AnsiColor.DEFAULT}

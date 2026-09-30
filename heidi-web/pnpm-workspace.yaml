@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+allowBuilds:
+  '@biomejs/biome': true
+  '@tailwindcss/oxide': true
+  esbuild: true
+  sharp: true
+
+# This internal package is intentionally upgraded ahead of pnpm's default
+# 24-hour release-age window. Keep the exception version-specific so the
+# supply-chain policy continues to protect all other dependencies and future
+# versions of this package.
+minimumReleaseAgeExclude:
+  - '@heidiverse/heidi-web-components@1.0.0-alpha.24'

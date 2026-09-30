@@ -1,0 +1,8 @@
+{
+  "short_name": "Heidi",
+  "name": "Heidi Web Cockpit",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#F4F8F9",
+  "background_color": "#F4F8F9"
+}

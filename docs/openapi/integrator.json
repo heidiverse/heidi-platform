@@ -1,0 +1,1367 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Heidi Integrator API",
+    "description" : "Run issuance and presentation processes.\n\n## Start here\n\n1. Your backend calls `POST /integration/v1/processes`.\n2. Your backend calls `POST /integration/v1/processes/{processId}/start`.\n3. Give only the returned `clientInteractionToken` to the browser.\n4. Use Heidi Web Components, or call `GET /interaction/v1/processes/current`.\n5. Your backend polls `GET /integration/v1/processes/{processId}/result`.\n\n`/integration/v1` is primarily backend-to-backend. `/interaction/v1` is browser-facing. Sections marked **Optional** support custom clients and are not required for the standard flow.",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "tags" : [ {
+    "name" : "Start here: backend process lifecycle",
+    "description" : "Backend-only calls for initializing, starting, and retrieving issuance or presentation processes. Never expose the API key or process token to a browser."
+  }, {
+    "name" : "Then: browser process interaction",
+    "description" : "Browser-safe continuation of a process already started by the integrating backend. Heidi Web Components call this automatically; a custom frontend calls it with the short-lived client interaction token."
+  }, {
+    "name" : "Discover integration capabilities",
+    "description" : "Lets an integrating backend inspect which credential schemas and scopes its API key may use before starting a process."
+  }, {
+    "name" : "Presentation wallet hand-off",
+    "description" : "Browser endpoint that turns a presentation hand-off token into the redirect to the user's wallet. Web Components navigate here automatically."
+  }, {
+    "name" : "Optional: presentation status and metadata",
+    "description" : "Browser helpers for custom presentation pages. Standard Web Components handle these calls internally."
+  } ],
+  "paths" : {
+    "/integration/v1/processes" : {
+      "post" : {
+        "tags" : [ "Start here: backend process lifecycle" ],
+        "summary" : "Initialize an integration process",
+        "description" : "Creates an issuance or presentation process. Returns `processId` and a backend-only `processToken`. Retain both on the integrating server, then exchange the token through the start endpoint. The token must never reach a browser.",
+        "operationId" : "initialize",
+        "parameters" : [ {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "X-API-KEY",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InitializeProcessRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IntegrationProcessInitializationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "apiKeyAuthorization" : [ ]
+        }, {
+          "apiKeyHeader" : [ ]
+        } ]
+      }
+    },
+    "/integration/v1/processes/{processId}/start" : {
+      "post" : {
+        "tags" : [ "Start here: backend process lifecycle" ],
+        "summary" : "Start an initialized integration process",
+        "description" : "Exchanges the backend-only process token and starts the issuer or verifier transaction. The response contains a short-lived `clientInteractionToken`; send only that token to the browser or Web Component.",
+        "operationId" : "start",
+        "parameters" : [ {
+          "name" : "processId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "X-API-KEY",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartIntegrationProcessRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IntegrationProcessResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "apiKeyAuthorization" : [ ]
+        }, {
+          "apiKeyHeader" : [ ]
+        } ]
+      }
+    },
+    "/interaction/v1/transactions/{transactionId}/status" : {
+      "get" : {
+        "tags" : [ "Optional: presentation status and metadata" ],
+        "summary" : "Read public presentation transaction status",
+        "description" : "Lets a browser ticket page poll a presentation transaction after it has a transaction ID. It returns lifecycle status only; disclosed claims remain available exclusively from the backend process result endpoint.",
+        "operationId" : "getStatus",
+        "parameters" : [ {
+          "name" : "transactionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionStateV2"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interaction/v1/qr/openid4vp" : {
+      "get" : {
+        "tags" : [ "Presentation wallet hand-off" ],
+        "summary" : "Redirect the browser to a presentation wallet",
+        "description" : "Consumes the one-time `authFlowToken` from Heidi's presentation hand-off URL, creates the OpenID4VP authorization request, and responds with a `303` redirect to the wallet. Integrators normally use the hand-off URL returned by the browser interaction endpoint instead of constructing this request themselves.",
+        "operationId" : "initiateOpenId4vpFlow",
+        "parameters" : [ {
+          "name" : "authFlowToken",
+          "in" : "query",
+          "description" : "One-time presentation hand-off token. Treat it as a short-lived browser capability and do not log it.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "useDcApi",
+          "in" : "query",
+          "description" : "Use the browser Digital Credentials API instead of a wallet URI redirect when supported.",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        }, {
+          "name" : "OID4VPVersion",
+          "in" : "query",
+          "description" : "OID4VP protocol version expected by the target wallet. Keep the default unless the deployment profile requires another version.",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "DRAFT_28",
+            "enum" : [ "DRAFT_21", "DRAFT_24", "DRAFT_26", "DRAFT_28", "VERSION_ONE_DOT_ZERO" ]
+          },
+          "example" : "DRAFT_28"
+        } ],
+        "responses" : {
+          "303" : {
+            "description" : "Redirect to the wallet authorization request",
+            "headers" : {
+              "Location" : {
+                "description" : "Wallet authorization request URI",
+                "style" : "simple",
+                "schema" : {
+                  "type" : "string",
+                  "format" : "uri"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interaction/v1/processes/current" : {
+      "get" : {
+        "tags" : [ "Then: browser process interaction" ],
+        "summary" : "Get browser-safe interaction data",
+        "description" : "Call after the backend start endpoint returns `clientInteractionToken`. The response contains current process state, wallet hand-off data, resolved client configuration, and allowlisted display claims. It never returns the integration API key, process token, or complete backend result.",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClientInteractionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "clientInteractionToken" : [ ]
+        } ]
+      }
+    },
+    "/interaction/v1/presentation/dcqlQuery/{schemaId}" : {
+      "get" : {
+        "tags" : [ "Optional: presentation status and metadata" ],
+        "summary" : "Build the DCQL request for a proof schema",
+        "description" : "Advanced helper for a custom presentation UI that needs the exact claims requested by a published proof schema. The standard process flow and Heidi Web Components resolve this automatically.",
+        "operationId" : "getDcqlQuery",
+        "parameters" : [ {
+          "name" : "schemaId",
+          "in" : "path",
+          "description" : "UUID of the published proof schema.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DcqlQuery"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integration/v1/processes/{processId}/result" : {
+      "get" : {
+        "tags" : [ "Start here: backend process lifecycle" ],
+        "summary" : "Get the complete integration process result",
+        "description" : "Poll from the integrating backend using the original API key. Returns process state and disclosed claims. Raw VP data is returned only when `includeVpToken` was requested during initialization.",
+        "operationId" : "result",
+        "parameters" : [ {
+          "name" : "processId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "X-API-KEY",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IntegrationProcessResult"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "apiKeyAuthorization" : [ ]
+        }, {
+          "apiKeyHeader" : [ ]
+        } ]
+      }
+    },
+    "/integration/v1/credentials" : {
+      "get" : {
+        "tags" : [ "Discover integration capabilities" ],
+        "summary" : "List credential schemas allowed for an API key",
+        "description" : "Returns the organisation, scopes, and published credential schemas assigned to the supplied `X-API-KEY`. Use these identifiers when building an issuance initialization request. This endpoint accepts only the `X-API-KEY` header form.",
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "name" : "X-API-KEY",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IntegrationAuthorizedCredentialsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "apiKeyHeader" : [ ]
+        } ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "InitializeProcessRequest" : {
+        "type" : "object",
+        "properties" : {
+          "action" : {
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "preAuthIssuanceData" : {
+            "$ref" : "#/components/schemas/PreAuthIssuanceData",
+            "writeOnly" : true
+          },
+          "presentationData" : {
+            "$ref" : "#/components/schemas/PresentationData",
+            "writeOnly" : true
+          },
+          "includeVpToken" : {
+            "type" : "boolean"
+          },
+          "clientDisplayClaims" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "clientConfiguration" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        }
+      },
+      "JsonNode" : {
+        "type" : "object",
+        "additionalProperties" : true,
+        "description" : "Arbitrary JSON object."
+      },
+      "PreAuthIssuanceData" : {
+        "type" : "object",
+        "properties" : {
+          "schemaIdentifier" : {
+            "$ref" : "#/components/schemas/SchemaIdentifier"
+          },
+          "values" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "attributeUrl" : {
+            "type" : "string"
+          },
+          "issuerSlug" : {
+            "type" : "string"
+          },
+          "includeTxCode" : {
+            "type" : "boolean"
+          },
+          "credentialOfferType" : {
+            "type" : "string",
+            "enum" : [ "URI", "VALUE" ]
+          },
+          "issuanceProfileId" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "issuanceProfileId" ]
+      },
+      "PresentationData" : {
+        "type" : "object",
+        "properties" : {
+          "proofSchemeId" : {
+            "type" : "string"
+          },
+          "transactionData" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "useDcApi" : {
+            "type" : "boolean"
+          },
+          "oid4vpVersion" : {
+            "type" : "string",
+            "enum" : [ "DRAFT_21", "DRAFT_24", "DRAFT_26", "DRAFT_28", "VERSION_ONE_DOT_ZERO" ]
+          },
+          "presentationProfileId" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "presentationProfileId", "proofSchemeId" ]
+      },
+      "SchemaIdentifier" : {
+        "type" : "object",
+        "properties" : {
+          "credentialIdentifier" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        }
+      },
+      "IntegrationProcessInitializationResponse" : {
+        "type" : "object",
+        "properties" : {
+          "processId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "processToken" : {
+            "type" : "string"
+          },
+          "txCode" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "type" : "number"
+          }
+        }
+      },
+      "StartIntegrationProcessRequest" : {
+        "type" : "object",
+        "properties" : {
+          "processToken" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "clientConfiguration" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        },
+        "required" : [ "processToken" ]
+      },
+      "IntegrationProcessResponse" : {
+        "type" : "object",
+        "properties" : {
+          "processId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clientInteractionToken" : {
+            "type" : "string"
+          },
+          "txCode" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "type" : "number"
+          }
+        }
+      },
+      "ConnectionStateV2" : {
+        "type" : "object",
+        "properties" : {
+          "connectionId" : {
+            "type" : "string"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "NOT_STARTED", "STARTED", "CREDENTIAL_REJECTED", "CREDENTIAL_ACCEPTED", "CREDENTIAL_VALIDATION_FAILED", "ERROR_POLL_CREDENTIAL_VERIFICATION" ]
+          },
+          "disclosures" : { },
+          "validationResult" : {
+            "type" : "boolean"
+          },
+          "terminal" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "Attribute" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "STRING", "LINK", "FILE_DOWNLOAD", "MAIL", "PHONE", "NUMBER", "BOOLEAN", "DATE", "TIME", "DATETIME", "LOCATION", "DATEOFBIRTH", "IMAGE", "OTHER" ]
+          },
+          "displayName" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "attributeNameOverrides" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "ClientInteractionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "useDcApi" : {
+            "type" : "boolean"
+          },
+          "crossDevice" : {
+            "$ref" : "#/components/schemas/ClientProcessData"
+          },
+          "sameDevice" : {
+            "$ref" : "#/components/schemas/ClientProcessData"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "NOT_STARTED", "STARTED", "CREDENTIAL_REJECTED", "CREDENTIAL_ACCEPTED", "CREDENTIAL_VALIDATION_FAILED", "ERROR_POLL_CREDENTIAL_VERIFICATION" ]
+          },
+          "displayClaims" : {
+            "$ref" : "#/components/schemas/DisplayClaims"
+          },
+          "clientConfiguration" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        }
+      },
+      "ClientProcessData" : {
+        "type" : "object",
+        "properties" : {
+          "qrCodeDataPath" : {
+            "type" : "string"
+          },
+          "qrCodeDataScheme" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CredentialScheme" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "credentialIdentifier" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "issuerDefinition" : {
+            "$ref" : "#/components/schemas/IssuerDefinition"
+          },
+          "attributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Attribute"
+            }
+          },
+          "issuerSettings" : {
+            "$ref" : "#/components/schemas/IssuerSettings"
+          }
+        }
+      },
+      "DisplayClaims" : {
+        "type" : "object",
+        "properties" : {
+          "schema" : {
+            "$ref" : "#/components/schemas/ProofSchemeResponse"
+          },
+          "claims" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        }
+      },
+      "DisplayNames" : {
+        "type" : "object",
+        "properties" : {
+          "fr" : {
+            "type" : "string"
+          },
+          "en" : {
+            "type" : "string"
+          },
+          "de" : {
+            "type" : "string"
+          },
+          "it" : {
+            "type" : "string"
+          }
+        }
+      },
+      "IssuerDefinition" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "logo" : {
+            "type" : "string"
+          },
+          "keyType" : {
+            "type" : "string"
+          },
+          "slug" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "$ref" : "#/components/schemas/DisplayNames"
+          }
+        }
+      },
+      "IssuerSettings" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "issuerKeyType" : {
+            "type" : "string"
+          },
+          "doctype" : {
+            "type" : "string"
+          },
+          "namespace" : {
+            "type" : "string"
+          },
+          "vct" : {
+            "type" : "string"
+          },
+          "supportedCredentialTypes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "uniqueItems" : true
+          }
+        }
+      },
+      "ProofSchemeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "uuid" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "purpose" : {
+            "type" : "string"
+          },
+          "validationLogic" : {
+            "type" : "string"
+          },
+          "validationMode" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "number"
+          },
+          "updatedAt" : {
+            "type" : "number"
+          },
+          "redirectUri" : {
+            "type" : "string"
+          },
+          "tenantId" : {
+            "type" : "string"
+          },
+          "verifierIdentity" : {
+            "$ref" : "#/components/schemas/IssuerDefinition"
+          },
+          "verifierIdentityOverridden" : {
+            "type" : "boolean"
+          },
+          "verifierSigningKeyId" : {
+            "type" : "string"
+          },
+          "proofSigningProviderId" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "verifierTrustSystem" : {
+            "type" : "string"
+          },
+          "verifierClientIdScheme" : {
+            "type" : "string"
+          },
+          "verifierClientIdSchemeOverridden" : {
+            "type" : "boolean"
+          },
+          "credentialSchemes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CredentialScheme"
+            }
+          },
+          "registrationCertificate" : {
+            "type" : "string"
+          },
+          "swissIdentityStatement" : {
+            "type" : "string"
+          },
+          "swissVerificationQueryStatement" : {
+            "type" : "string"
+          },
+          "swissVerificationQueryEnabled" : {
+            "type" : "boolean"
+          },
+          "alwaysIncludeDcqlQuery" : {
+            "type" : "boolean"
+          },
+          "swissProtectedVerificationStatements" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "eudiVerificationTrustAnchors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "swissVerificationTrustAnchor" : {
+            "type" : "string"
+          },
+          "swissTrustRegistryBaseUrl" : {
+            "type" : "string"
+          },
+          "trustedAuthorities" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TrustedAuthorityQuery"
+            }
+          },
+          "verifierInfos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VerifierAttestation"
+            }
+          },
+          "presentationProfileId" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TrustedAuthorityQuery" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string"
+          },
+          "values" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "credentialId" : {
+            "type" : "string"
+          }
+        }
+      },
+      "VerifierAttestation" : {
+        "type" : "object",
+        "properties" : {
+          "format" : {
+            "type" : "string"
+          },
+          "data" : {
+            "type" : "string"
+          },
+          "credential_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "Array" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "array",
+              "items" : {
+                "oneOf" : [ {
+                  "$ref" : "#/components/schemas/Array"
+                }, {
+                  "$ref" : "#/components/schemas/Boolean"
+                }, {
+                  "$ref" : "#/components/schemas/Bytes"
+                }, {
+                  "$ref" : "#/components/schemas/Null"
+                }, {
+                  "$ref" : "#/components/schemas/Number"
+                }, {
+                  "$ref" : "#/components/schemas/Object"
+                }, {
+                  "$ref" : "#/components/schemas/OrderedObject"
+                }, {
+                  "$ref" : "#/components/schemas/String"
+                }, {
+                  "$ref" : "#/components/schemas/Tag"
+                } ]
+              }
+            }
+          }
+        } ]
+      },
+      "Boolean" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "boolean"
+            }
+          }
+        } ]
+      },
+      "Bytes" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "string",
+              "format" : "byte"
+            }
+          }
+        } ]
+      },
+      "ClaimsQuery" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "path" : {
+            "type" : "array",
+            "items" : {
+              "oneOf" : [ {
+                "$ref" : "#/components/schemas/Index"
+              }, {
+                "$ref" : "#/components/schemas/Null"
+              }, {
+                "$ref" : "#/components/schemas/String"
+              } ]
+            }
+          },
+          "values" : {
+            "type" : "array",
+            "items" : {
+              "oneOf" : [ {
+                "$ref" : "#/components/schemas/Array"
+              }, {
+                "$ref" : "#/components/schemas/Boolean"
+              }, {
+                "$ref" : "#/components/schemas/Bytes"
+              }, {
+                "$ref" : "#/components/schemas/Null"
+              }, {
+                "$ref" : "#/components/schemas/Number"
+              }, {
+                "$ref" : "#/components/schemas/Object"
+              }, {
+                "$ref" : "#/components/schemas/OrderedObject"
+              }, {
+                "$ref" : "#/components/schemas/String"
+              }, {
+                "$ref" : "#/components/schemas/Tag"
+              } ]
+            }
+          }
+        }
+      },
+      "CredentialQuery" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "format" : {
+            "type" : "string"
+          },
+          "multiple" : {
+            "type" : "boolean"
+          },
+          "meta" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/IsoMdoc"
+            }, {
+              "$ref" : "#/components/schemas/LdpVc"
+            }, {
+              "$ref" : "#/components/schemas/SdjwtVc"
+            }, {
+              "$ref" : "#/components/schemas/W3c"
+            } ]
+          },
+          "trustedAuthorities" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TrustedAuthority"
+            }
+          },
+          "requireCryptographicHolderBinding" : {
+            "type" : "boolean"
+          },
+          "claims" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ClaimsQuery"
+            }
+          },
+          "claimSets" : {
+            "type" : "array",
+            "items" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      },
+      "CredentialSetQuery" : {
+        "type" : "object",
+        "properties" : {
+          "options" : {
+            "type" : "array",
+            "items" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "purpose" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Array"
+            }, {
+              "$ref" : "#/components/schemas/Boolean"
+            }, {
+              "$ref" : "#/components/schemas/Bytes"
+            }, {
+              "$ref" : "#/components/schemas/Null"
+            }, {
+              "$ref" : "#/components/schemas/Number"
+            }, {
+              "$ref" : "#/components/schemas/Object"
+            }, {
+              "$ref" : "#/components/schemas/OrderedObject"
+            }, {
+              "$ref" : "#/components/schemas/String"
+            }, {
+              "$ref" : "#/components/schemas/Tag"
+            } ]
+          }
+        }
+      },
+      "DcqlQuery" : {
+        "type" : "object",
+        "properties" : {
+          "credentials" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CredentialQuery"
+            }
+          },
+          "credentialSets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CredentialSetQuery"
+            }
+          }
+        }
+      },
+      "Float" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/JsonNumber"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          }
+        } ]
+      },
+      "Index" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/PointerPart"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1-s-VKNKU" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          }
+        } ]
+      },
+      "Integer" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/JsonNumber"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          }
+        } ]
+      },
+      "IsoMdoc" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Meta"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "doctypeValue" : {
+              "type" : "string"
+            }
+          }
+        } ]
+      },
+      "JsonNumber" : { },
+      "LdpVc" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Meta"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "typeValues" : {
+              "type" : "array",
+              "items" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        } ]
+      },
+      "MapEntry" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Array"
+            }, {
+              "$ref" : "#/components/schemas/Boolean"
+            }, {
+              "$ref" : "#/components/schemas/Bytes"
+            }, {
+              "$ref" : "#/components/schemas/Null"
+            }, {
+              "$ref" : "#/components/schemas/Number"
+            }, {
+              "$ref" : "#/components/schemas/Object"
+            }, {
+              "$ref" : "#/components/schemas/OrderedObject"
+            }, {
+              "$ref" : "#/components/schemas/String"
+            }, {
+              "$ref" : "#/components/schemas/Tag"
+            } ]
+          },
+          "value" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Array"
+            }, {
+              "$ref" : "#/components/schemas/Boolean"
+            }, {
+              "$ref" : "#/components/schemas/Bytes"
+            }, {
+              "$ref" : "#/components/schemas/Null"
+            }, {
+              "$ref" : "#/components/schemas/Number"
+            }, {
+              "$ref" : "#/components/schemas/Object"
+            }, {
+              "$ref" : "#/components/schemas/OrderedObject"
+            }, {
+              "$ref" : "#/components/schemas/String"
+            }, {
+              "$ref" : "#/components/schemas/Tag"
+            } ]
+          }
+        }
+      },
+      "Meta" : { },
+      "Null" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        } ]
+      },
+      "Number" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "oneOf" : [ {
+                "$ref" : "#/components/schemas/Float"
+              }, {
+                "$ref" : "#/components/schemas/Integer"
+              } ]
+            }
+          }
+        } ]
+      },
+      "Object" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        } ]
+      },
+      "OrderedMap" : {
+        "type" : "object",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MapEntry"
+            }
+          }
+        }
+      },
+      "OrderedObject" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "$ref" : "#/components/schemas/OrderedMap"
+            }
+          }
+        } ]
+      },
+      "PointerPart" : { },
+      "SdjwtVc" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Meta"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "vctValues" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          }
+        } ]
+      },
+      "String" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "v1" : {
+              "type" : "string"
+            }
+          }
+        } ]
+      },
+      "Tag" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Value"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "value" : {
+              "type" : "array",
+              "items" : {
+                "oneOf" : [ {
+                  "$ref" : "#/components/schemas/Array"
+                }, {
+                  "$ref" : "#/components/schemas/Boolean"
+                }, {
+                  "$ref" : "#/components/schemas/Bytes"
+                }, {
+                  "$ref" : "#/components/schemas/Null"
+                }, {
+                  "$ref" : "#/components/schemas/Number"
+                }, {
+                  "$ref" : "#/components/schemas/Object"
+                }, {
+                  "$ref" : "#/components/schemas/OrderedObject"
+                }, {
+                  "$ref" : "#/components/schemas/String"
+                }, {
+                  "$ref" : "#/components/schemas/Tag"
+                } ]
+              }
+            },
+            "tag-s-VKNKU" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          }
+        } ]
+      },
+      "TrustedAuthority" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string"
+          },
+          "values" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "Value" : { },
+      "W3c" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Meta"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "credentialTypes" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          }
+        } ]
+      },
+      "IntegrationProcessResult" : {
+        "type" : "object",
+        "properties" : {
+          "processId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "connectionState" : {
+            "$ref" : "#/components/schemas/ConnectionStateV2"
+          },
+          "vpToken" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        }
+      },
+      "IntegrationAuthorizedCredentialsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "credentialIdentifiers" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "scopes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "verify", "issue" ]
+            }
+          },
+          "tenantId" : {
+            "type" : "string"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "apiKeyAuthorization" : {
+        "type" : "apiKey",
+        "description" : "`ApiKey <API_KEY>`; backend only.",
+        "name" : "Authorization",
+        "in" : "header"
+      },
+      "apiKeyHeader" : {
+        "type" : "apiKey",
+        "description" : "Alternative backend-only API key header.",
+        "name" : "X-API-KEY",
+        "in" : "header"
+      },
+      "clientInteractionToken" : {
+        "type" : "http",
+        "description" : "Short-lived browser-safe client interaction token.",
+        "scheme" : "bearer"
+      }
+    }
+  }
+}

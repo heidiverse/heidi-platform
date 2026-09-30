@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "heidi-expression"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kapun-dcql-rust = { git = "https://github.com/KapunSDK/kapun-sdk.git", rev = "eefdf8a922f89c477fc4aedb923229d4487f807b", package = "kapun-dcql-rust", features = ["jlc"] }
+uniffi = { version = "=0.32.0" }

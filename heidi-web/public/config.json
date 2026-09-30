@@ -1,0 +1,6 @@
+{
+  "heidiApiBaseUrl": "http://localhost:8080/",
+  "heidiDefaultNamespace": "org.iso.18013.5.1",
+  "heidiDefaultDoctype": "org.iso.18013.5.1.mDL",
+  "appVersion": "local"
+}

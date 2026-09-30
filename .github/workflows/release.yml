@@ -1,0 +1,413 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+-[a-zA-Z0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+# Tags are created only by the sync bot, one per public release.
+#
+# Jobs that need a Docker daemon (Testcontainers, the docker CLI) run directly
+# on the runner, where the daemon is native. The others run in a `container:`
+# that pins their toolchain. Jib pushes straight to the registry and needs no
+# daemon.
+
+# Baseline for every job; the jobs that push or read images from GHCR widen it
+# to `packages:` themselves.
+permissions:
+  contents: read
+
+# Container jobs default to `sh`, which has no `pipefail` and no arrays. Every
+# image used here ships bash, so ask for it explicitly rather than writing to
+# the lowest common denominator.
+
+# Pin the Maven local repository into the workspace. Deliberately a relative
+# path: Maven resolves it against the working directory (the workspace root for
+# every mvn step here), so unlike ${{ github.workspace }} it needs no expression
+# and therefore cannot resolve to the host path inside a job container.
+env:
+  MAVEN_ARGS: -Dmaven.repo.local=.m2repo -ntp
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Release metadata
+  #
+  # Every service is rebuilt on every tag, whether or not its sources changed.
+  # Aliasing the previous release's image under the new tag would be cheaper,
+  # but it ships an image whose embedded Spring Boot build-info still reports
+  # the older version, and whose base layers are frozen at whenever that build
+  # ran. A release should be internally consistent and built on current bases,
+  # so this job now only derives the tag metadata the build jobs share.
+  # ---------------------------------------------------------------------------
+
+  release-info:
+    name: Compute Release Metadata
+    runs-on: ubuntu-latest
+    container: buildpack-deps:bookworm-scm
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    outputs:
+      image_prefix: ${{ steps.meta.outputs.image_prefix }}
+      new_version: ${{ steps.meta.outputs.new_version }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+    steps:
+      # Derived entirely from the tag and the repository owner, so this job
+      # needs no checkout - and hence no git history, no registry login and no
+      # Docker daemon.
+      - name: Derive image prefix and version
+        id: meta
+        run: |
+          set -euo pipefail
+
+          IMAGE_PREFIX="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "image_prefix=${IMAGE_PREFIX}" >> "$GITHUB_OUTPUT"
+
+          NEW_VERSION="${GITHUB_REF_NAME#v}"
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+          # The two trigger patterns differ only in the trailing `-<qualifier>`:
+          # v1.2.3 is a stable release, v1.2.3-rc1 a prerelease. Prereleases never
+          # move the `latest` image tag.
+          case "$NEW_VERSION" in
+            *-*) echo "is_prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "is_prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  # ---------------------------------------------------------------------------
+  # Native signing crypto
+  #
+  # Publishes org.heidiverse:heidi-software-signerinterface-jvm to the local
+  # Maven repository, the same thing `just prepare-signer-interface` does. It is
+  # not on Maven Central, so both the heidi-platform-api reactor
+  # (heidi-entity-service) and the heidi-issuer-backend reactor
+  # (heidi-issuer-service) fail to resolve it without this.
+  #
+  # Built once and passed along as an artifact rather than rebuilt in each
+  # consumer: it is a Kotlin Multiplatform + Rust/uniffi build, an order of
+  # magnitude more expensive than the Maven reactors that consume it.
+  # ---------------------------------------------------------------------------
+
+  build-signer-interface:
+    name: Build native signing crypto
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and stage signer interface
+        uses: ./.github/actions/build-signer-interface
+
+  # ---------------------------------------------------------------------------
+  # heidi-platform-api
+  # ---------------------------------------------------------------------------
+
+  build-api:
+    name: Build & Publish heidi-platform-api Image
+    needs: [ release-info, build-signer-interface ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      - name: Set release version
+        run: |
+          mvn -B -f heidi-platform-api/pom.xml versions:set \
+            -DnewVersion="${{ needs.release-info.outputs.new_version }}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+
+      - name: Build and test reactor
+        run: |
+          mvn -B -f heidi-platform-api/pom.xml \
+            -pl heidi-platform-api-ws -am install
+
+      # -DskipTests here only: the reactor step above already ran them, and this
+      # invocation just repackages the ws module for the image.
+      - name: Build and push image
+        env:
+          IS_PRERELEASE: ${{ needs.release-info.outputs.is_prerelease }}
+        run: |
+          EXTRA=()
+          [ "$IS_PRERELEASE" = "false" ] && EXTRA+=(-Djib.to.tags=latest)
+          mvn -B -f heidi-platform-api/heidi-platform-api-ws/pom.xml -DskipTests \
+            -Djib.to.image="${{ needs.release-info.outputs.image_prefix }}/heidi-platform-api:${{ needs.release-info.outputs.new_version }}" \
+            "${EXTRA[@]}" \
+            -Djib.to.auth.username="${{ github.actor }}" \
+            -Djib.to.auth.password="${{ secrets.GITHUB_TOKEN }}" \
+            package jib:build
+
+  # ---------------------------------------------------------------------------
+  # heidi-issuer-backend
+  # ---------------------------------------------------------------------------
+
+  build-issuer:
+    name: Build & Publish heidi-issuer-backend Image
+    needs: [ release-info, build-signer-interface ]
+    runs-on: ubuntu-latest
+    container: maven:3.9-eclipse-temurin-21
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      - name: Set release version
+        run: |
+          mvn -B -f heidi-issuer-backend/pom.xml versions:set \
+            -DnewVersion="${{ needs.release-info.outputs.new_version }}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+
+      - name: Build and test reactor
+        run: |
+          mvn -B -f heidi-issuer-backend/pom.xml \
+            -pl heidi-issuer-ws -am install
+
+      # -DskipTests here only: the reactor step above already ran them, and this
+      # invocation just repackages the ws module for the image.
+      - name: Build and push image
+        env:
+          IS_PRERELEASE: ${{ needs.release-info.outputs.is_prerelease }}
+        run: |
+          EXTRA=()
+          [ "$IS_PRERELEASE" = "false" ] && EXTRA+=(-Djib.to.tags=latest)
+          mvn -B -f heidi-issuer-backend/heidi-issuer-ws/pom.xml -DskipTests \
+            -Djib.to.image="${{ needs.release-info.outputs.image_prefix }}/heidi-issuer:${{ needs.release-info.outputs.new_version }}" \
+            "${EXTRA[@]}" \
+            -Djib.to.auth.username="${{ github.actor }}" \
+            -Djib.to.auth.password="${{ secrets.GITHUB_TOKEN }}" \
+            package jib:build
+
+  # ---------------------------------------------------------------------------
+  # heidi-verifier-backend
+  # ---------------------------------------------------------------------------
+
+  build-verifier:
+    name: Build & Publish heidi-verifier-backend Image
+    needs: [ release-info, build-signer-interface ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      - name: Set release version
+        run: |
+          mvn -B -f heidi-verifier-backend/pom.xml versions:set \
+            -DnewVersion="${{ needs.release-info.outputs.new_version }}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+
+      - name: Build and test reactor
+        run: |
+          mvn -B -f heidi-verifier-backend/pom.xml \
+            -pl heidi-verifier-ws -am install
+
+      # -DskipTests here only: the reactor step above already ran them, and this
+      # invocation just repackages the ws module for the image.
+      - name: Build and push image
+        env:
+          IS_PRERELEASE: ${{ needs.release-info.outputs.is_prerelease }}
+        run: |
+          EXTRA=()
+          [ "$IS_PRERELEASE" = "false" ] && EXTRA+=(-Djib.to.tags=latest)
+          mvn -B -f heidi-verifier-backend/heidi-verifier-ws/pom.xml -DskipTests \
+            -Djib.to.image="${{ needs.release-info.outputs.image_prefix }}/heidi-verifier:${{ needs.release-info.outputs.new_version }}" \
+            "${EXTRA[@]}" \
+            -Djib.to.auth.username="${{ github.actor }}" \
+            -Djib.to.auth.password="${{ secrets.GITHUB_TOKEN }}" \
+            package jib:build
+
+  # ---------------------------------------------------------------------------
+  # heidi-signing-service
+  # ---------------------------------------------------------------------------
+
+  build-signing-service:
+    name: Build & Publish heidi-signing-service Image
+    needs: [ release-info, build-signer-interface ]
+    runs-on: ubuntu-latest
+    container: maven:3.9-eclipse-temurin-21
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Set release version
+        run: |
+          mvn -B -f heidi-signing-service/pom.xml versions:set \
+            -DnewVersion="${{ needs.release-info.outputs.new_version }}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+
+      - name: Build and test reactor
+        run: |
+          mvn -B -f heidi-signing-service/pom.xml \
+            -pl software/service -am install
+
+      # -DskipTests here only: the reactor step above already ran them, and this
+      # invocation just repackages the service module for the image.
+      - name: Build and push image
+        env:
+          IS_PRERELEASE: ${{ needs.release-info.outputs.is_prerelease }}
+        run: |
+          EXTRA=()
+          [ "$IS_PRERELEASE" = "false" ] && EXTRA+=(-Djib.to.tags=latest)
+          mvn -B -f heidi-signing-service/software/service/pom.xml -DskipTests \
+            -Djib.to.image="${{ needs.release-info.outputs.image_prefix }}/heidi-signing-service:${{ needs.release-info.outputs.new_version }}" \
+            "${EXTRA[@]}" \
+            -Djib.to.auth.username="${{ github.actor }}" \
+            -Djib.to.auth.password="${{ secrets.GITHUB_TOKEN }}" \
+            package jib:build
+
+  # ---------------------------------------------------------------------------
+  # heidi-web
+  # ---------------------------------------------------------------------------
+
+  build-web:
+    name: Build & Publish heidi-web Image
+    needs: release-info
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: heidi-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: heidi-web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # The Dockerfile does `ADD bin/heidi-web.tar.gz .` and then copies
+      # /app/dist, so the archive must contain dist/ at its top level.
+      - name: Package dist for the Docker build context
+        run: tar -czf docker/heidi-web/bin/heidi-web.tar.gz dist
+
+      - uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4.4.0
+
+      # The token is passed through the environment rather than interpolated
+      # into the script, so it never becomes part of the command text the
+      # runner assembles and logs on failure.
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin <<<"$GHCR_TOKEN"
+
+      - name: Build and push image
+        env:
+          IS_PRERELEASE: ${{ needs.release-info.outputs.is_prerelease }}
+          IMAGE: ${{ needs.release-info.outputs.image_prefix }}/heidi-web
+        run: |
+          EXTRA=()
+          [ "$IS_PRERELEASE" = "false" ] && EXTRA+=(--tag "${IMAGE}:latest")
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --tag "${IMAGE}:${{ needs.release-info.outputs.new_version }}" \
+            "${EXTRA[@]}" \
+            docker/heidi-web

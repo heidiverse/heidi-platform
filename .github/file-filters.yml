@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Path filters for .github/workflows/ci.yml, read by dorny/paths-filter.
+#
+
+ci: &ci
+  - '.github/workflows/ci.yml'
+  - '.github/actions/**'
+  - '.github/file-filters.yml'
+
+signer:
+  - *ci
+  - 'heidi-signing-crypto/**'
+
+api:
+  - *ci
+  - 'docs/openapi/**'
+  - 'heidi-platform-api/**'
+  - 'heidi-shared-backend/**'
+  - 'heidi-signing-crypto/**'
+  - 'justfile'
+
+issuer:
+  - *ci
+  - 'heidi-issuer-backend/**'
+  - 'heidi-shared-backend/**'
+  - 'heidi-signing-crypto/**'
+
+verifier:
+  - *ci
+  - 'heidi-verifier-backend/**'
+  - 'heidi-signing-crypto/**'
+  - 'heidi-shared-backend/**'
+
+web:
+  - *ci
+  - 'heidi-web/**'
+
+signing-service:
+  - *ci
+  - 'heidi-signing-service/**'
+  - 'heidi-shared-backend/**'
+  - 'heidi-signing-crypto/**'
+
+conformance:
+  - *ci
+  - 'justfile'
+  - 'tools/conformance/**'

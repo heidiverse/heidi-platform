@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {
+      "tenantId": "acme",
+      "issuerSlug": "acme",
+      "credentialSchemas": ["credential-schema.json", "credential-schema-eudi.json"],
+      "proofSchemas": ["proof-schema.json", "proof-schema-eudi.json"]
+    }
+  ]
+}

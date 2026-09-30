@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>heidi-verifier-backend</artifactId>
+        <groupId>org.heidiverse.heidi.verifier</groupId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>heidi-verifier-service</artifactId>
+    <name>Heidi Verifier Service</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.heidiverse.heidi.verifier</groupId>
+            <artifactId>heidi-verifier-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.signing</groupId>
+            <artifactId>heidi-signing-client</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- Module dependencies -->
+        <dependency>
+            <groupId>org.heidiverse.heidi.verifier</groupId>
+            <artifactId>heidi-verifier-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.verifier</groupId>
+            <artifactId>heidi-verifier-sdjwt</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--      HEIDI KMP      -->
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-util-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-dcql-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-credentials-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <!--    Provides the heidi_x509 chain verification used by TrustedRootX509CertVerifier    -->
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-crypto-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kapunsdk</groupId>
+            <artifactId>kapun-trust-jvm</artifactId>
+            <version>${kapunsdk.version}</version>
+        </dependency>
+
+        <!-- shared test -->
+        <dependency>
+            <groupId>org.heidiverse.heidi.verifier</groupId>
+            <artifactId>heidi-verifier-data</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse.heidi.shared</groupId>
+            <artifactId>heidi-shared-core</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.heidiverse</groupId>
+            <artifactId>heidi-software-signerinterface-jvm</artifactId>
+            <version>${heidi.signerinterface.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.heidiverse</groupId>
+            <artifactId>heidi-expression-jvm</artifactId>
+            <version>${heidi.expression.version}</version>
+        </dependency>
+        <!-- UniFFI declares these as runtime dependencies, but its generated Java API exposes them. -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.19.1</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.ubique.uniffi</groupId>
+            <artifactId>runtime-jvm</artifactId>
+            <version>1.2.1</version>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>Jar Tests Package</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

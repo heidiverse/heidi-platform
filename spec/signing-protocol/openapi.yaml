@@ -1,0 +1,918 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.1.0
+info:
+  title: Heidi Signing Protocol
+  version: 1.0.0-draft
+  summary: Remote signing keys, addressed by URI.
+  description: |
+    The wire form of `org.heidiverse.heidi.shared.signing.SigningKeyProvider`. A service that
+    speaks this protocol can hold signing keys for a Heidi platform: software keys, a PKCS#11
+    token, a cloud KMS, a qualified signature provider.
+
+    This is the seam between the open platform and every key backend. It is deliberately
+    independent of who operates either side — the platform reaches the service over HTTP, and the
+    service reaches its backend however it likes.
+
+    See README.md in this directory for the authentication profiles and for why the operations are
+    shaped this way.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: https://signing.example/v1
+    description: A service implementing this protocol
+
+security:
+  - mutualTLS: []
+  - bearerAuth: []
+  - registeredKey: []
+
+tags:
+  - name: Keys
+    description: Key lifecycle. Only signing is mandatory; the rest is optional per backend.
+  - name: Signing
+    description: Ordinary and generic provider operations.
+  - name: Service
+
+paths:
+  /auth/registrations:
+    post:
+      tags: [Service]
+      operationId: openRegistration
+      security:
+        - mutualTLS: []
+        - bearerAuth: []
+        - {}
+      summary: Open a registered-key authentication registration
+      description: |
+        This operation returns a PSK only for an accepted named client public key, or to a caller
+        protected by the deployment's transport authentication. The caller derives its Ed25519
+        authentication key from its own seed and completes the registration with the public-key
+        proof operation below. A service may require mTLS or bearer
+        authentication for registration even when registered keys are used for ordinary requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, client, publicKey]
+              properties:
+                provider:
+                  type: string
+                  description: The provider scheme for which the registration is being opened.
+                client:
+                  type: string
+                  description: |
+                    The name of the calling service, for example `platform`, `issuer` or `verifier`.
+                    A service answers 403 for a name it does not know, or for a public key that is
+                    not the one it accepts under that name.
+                  examples: ["issuer"]
+                publicKey:
+                  type: string
+                  format: byte
+                  description: |
+                    The Ed25519 public key the client derived from its seed, presented so the
+                    service can recognise it. Presenting the public key of a client that already
+                    completed a registration returns that registration instead of opening a second
+                    one: possession is proved in the key operation below, so the PSK is of no use
+                    to anyone else.
+      responses:
+        "200":
+          description: Registration material
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Registration" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/registrations/{registrationId}/key:
+    post:
+      tags: [Service]
+      operationId: registerPublicKey
+      security:
+        - mutualTLS: []
+        - bearerAuth: []
+        - {}
+      summary: Complete a registered-key authentication registration
+      parameters:
+        - name: registrationId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicKey, signature]
+              properties:
+                publicKey:
+                  type: string
+                  format: byte
+                  description: Ed25519 public key derived from the client's seed.
+                signature:
+                  type: string
+                  format: byte
+                  description: Ed25519ph proof over publicKey using the registration PSK.
+      responses:
+        "204": { description: Registration completed }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnsupportedAlgorithm" }
+
+  /auth/clients:
+    get:
+      tags: [Service]
+      operationId: listClients
+      summary: The clients this service accepts
+      description: |
+        What the platform's connection check reports to an operator: which callers the service
+        knows, and which of them have completed a registration. Names only; a client's public key
+        is configuration the operator already has.
+      responses:
+        "200":
+          description: Accepted clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Client" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+    post:
+      tags: [Service]
+      operationId: addClient
+      summary: Introduce a client
+      description: |
+        Platform-assisted acceptance, offered only when `/capabilities` says
+        `clientAcceptance: platform-assisted`, and usable only by a client the service already
+        accepts. It carries a public key, never a secret, and it is the alternative to an operator
+        pasting that key into the service's configuration. A service answering `allow-list`
+        refuses with 403.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Client" }
+      responses:
+        "204": { description: Client accepted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+    delete:
+      tags: [Service]
+      operationId: removeClient
+      summary: Withdraw an accepted client
+      description: |
+        Removes the client's public key from the acceptance list. Only the configured administrative
+        client may withdraw a client, and the removed client is refused on its next request.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Client withdrawn }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /keys/grants:
+    get:
+      tags: [Keys]
+      operationId: listGrants
+      summary: What clients may do with a scope
+      parameters:
+        - name: scope
+          in: query
+          required: true
+          schema: { type: string }
+          description: Key or operation scope, for example `kc/0f7a2f2a-3a0e-4f28-9a94-6d5f2b0f1a11`.
+      responses:
+        "200":
+          description: The scope's grants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Grant" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+    put:
+      tags: [Keys]
+      operationId: replaceGrants
+      summary: Replace a scope's grants
+      description: |
+        Written by the platform when an identity slot or its schema usage changes, and requires the
+        `key-management` purpose on the scope. The complete list is always sent: what is left
+        out is revoked. Private operations require an exact key-version URI or an `op/` scope.
+        A logical `kc/` policy never grants access to its versions. The platform retains exact
+        grants during rotation grace and while active flows reference a version.
+
+        Unknown scopes are closed by default. Only local development may explicitly enable
+        `heidi.signing.auth.fail-open`; revocation still blocks private operations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, grants]
+              properties:
+                scope: { type: string }
+                grants:
+                  type: array
+                  items: { $ref: "#/components/schemas/Grant" }
+            example:
+              scope: software://kc/0f7a2f2a-3a0e-4f28-9a94-6d5f2b0f1a11/8d2b4e10-1c6f-4f1a-9c3d-2f8e5a7b0c44
+              grants:
+                - client: platform
+                  purposes: [key-management]
+                - client: issuer
+                  purposes: [signing]
+      responses:
+        "204": { description: Grants replaced }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /capabilities:
+    get:
+      tags: [Service]
+      operationId: getCapabilities
+      security:
+        - mutualTLS: []
+        - bearerAuth: []
+        - {}
+      summary: What this service can do
+      description: |
+        Asked before offering an operation, so a caller greys out a control rather than
+        discovering the limit from a failed request. The returned `scheme` is the authoritative
+        URI scheme for this service; callers must not configure or guess it. This endpoint is
+        public so registered-key clients can discover the scheme before their first session.
+        `supportedAlgorithms` is intersected with
+        what the platform itself allows before anything is offered to an operator.
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Capabilities" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /health:
+    get:
+      tags: [Service]
+      operationId: getHealth
+      summary: Liveness of the backend behind this service
+      description: |
+        Reports rather than throws: a degraded backend should surface in an operator view without
+        taking down the caller. Answers about the backend, not about the HTTP service itself —
+        a service that is up but cannot reach its HSM returns `healthy: false` with 200.
+      responses:
+        "200":
+          description: Health report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /keys:
+    get:
+      tags: [Keys]
+      operationId: resolveKey
+      summary: Look up a key this service holds
+      parameters:
+        - $ref: "#/components/parameters/KeyUri"
+      responses:
+        "200":
+          description: The key's public half
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KeyRef" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+
+    post:
+      tags: [Keys]
+      operationId: createKey
+      summary: Generate a key
+      description: Present only when `capabilities.canCreate` is true.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateKeyRequest" }
+      responses:
+        "201":
+          description: The generated key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KeyRef" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnsupportedAlgorithm" }
+        "501": { $ref: "#/components/responses/NotCapable" }
+
+    delete:
+      tags: [Keys]
+      operationId: deleteKey
+      summary: Destroy a key
+      description: |
+        Present only when `capabilities.canDelete` is true. Several backends refuse deletion by
+        design, which is why rotation has to be able to mean "stop using it" rather than "remove
+        it".
+      parameters:
+        - $ref: "#/components/parameters/KeyUri"
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+        "501": { $ref: "#/components/responses/NotCapable" }
+
+  /keys/csr:
+    post:
+      tags: [Keys]
+      operationId: createCsr
+      summary: Create a PEM PKCS#10 certificate request
+      description: |
+        Requires administrative key-management authority. The service constructs the request
+        and signs it with the exact key version. Prepared versions need no signing grant;
+        revoked versions are refused. This endpoint cannot sign arbitrary messages.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keyUri, request]
+              properties:
+                keyUri: { type: string }
+                request:
+                  type: object
+                  required: [subject]
+                  properties:
+                    subject: { type: string, example: "CN=Issuer,O=Example" }
+                    dnsNames: { type: array, items: { type: string } }
+                    uriNames: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Signed certificate request
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pem]
+                properties:
+                  pem: { type: string }
+        "403": { description: Administrative authority required or key revoked }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+
+  /keys/revoke:
+    post:
+      tags: [Keys]
+      operationId: revokeKey
+      summary: Permanently disable a key version's private operations
+      description: |
+        Requires the administrative client and key-management authority. Idempotent.
+        Public reads and management remain available. Grant replacement cannot undo revocation,
+        including after a restart; fail-open mode does not bypass it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keyUri]
+              properties:
+                keyUri: { type: string }
+      responses:
+        "204": { description: Revoked, or already revoked }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: Administrative key-management authority required }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+
+  /keys/import:
+    post:
+      tags: [Keys]
+      operationId: importKey
+      summary: Take in externally generated key material
+      description: |
+        Present only when `capabilities.canImport` is true. Rare outside software and Vault-style
+        backends: an HSM or a qualified signature provider generally insists that keys originate
+        inside it, which is much of the point of using one. The private JWK is the protocol's
+        provider-neutral transport form; an implementation may translate it to its backend-native
+        import format. Providers that cannot accept externally generated material report
+        `canImport=false` and are configured with an existing key reference instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportKeyRequest" }
+      responses:
+        "201":
+          description: The imported key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KeyRef" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnsupportedAlgorithm" }
+        "501": { $ref: "#/components/responses/NotCapable" }
+
+  /signatures:
+    post:
+      tags: [Signing]
+      operationId: sign
+      summary: Sign a message
+      description: |
+        Takes either the full message or a digest the caller already computed.
+
+        `message` works for every supported algorithm and is the default choice. `digest` works only
+        for the algorithms in `digestSigningAlgorithms`, and exists for the two cases where sending
+        the content is wrong: when the signing service should not learn what is being signed, and
+        when the payload is large.
+
+        Pure signature schemes accept only `message`. JOSE `EdDSA` is PureEd25519 and `ML-DSA-*`
+        signs the message directly, so neither can be reconstructed from a hash — a backend whose own
+        API accepts only digests leaves them out of `supportedAlgorithms` rather than quietly signing
+        the wrong input.
+
+        `algorithm` is sent even though the key already has one, so a mismatch is refused rather
+        than silently resolved in the service's favour.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignRequest" }
+      responses:
+        "200":
+          description: The signature
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+        "422": { $ref: "#/components/responses/UnsupportedAlgorithm" }
+        "503":
+          description: The backend is unreachable or refused. Retryable.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /keys/content-key:
+    post:
+      tags: [Keys]
+      operationId: deriveContentKey
+      summary: Derive or unwrap one JWE content-encryption key
+      description: |
+        Performs only the JWE key-management step with the referenced private key. The payload,
+        ciphertext, and plaintext stay with the caller. The endpoint is available when the
+        provider advertises the requested algorithm in contentKeyAlgorithms.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContentKeyRequest" }
+      responses:
+        "200":
+          description: The per-message content-encryption key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentKeyResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+        "422": { $ref: "#/components/responses/UnsupportedAlgorithm" }
+        "501": { $ref: "#/components/responses/NotCapable" }
+        "503":
+          description: The backend is unreachable or refused.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /operations:
+    post:
+      tags: [Signing]
+      operationId: executeOperation
+      summary: Execute an advertised provider operation
+      description: |
+        Executes one of the profile operations advertised by `GET /capabilities`. The input and
+        result schemas belong to the named operation. The key is resolved by the provider and
+        private key material never crosses this boundary. A provider may return `PENDING` when the
+        operation requires authorization or another continuation step, as QES operations commonly do.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OperationRequest" }
+      responses:
+        "200":
+          description: Operation completed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationResponse" }
+        "202":
+          description: Operation requires authorization or continuation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/UnknownKey" }
+        "422": { $ref: "#/components/responses/InvalidOperation" }
+        "501": { $ref: "#/components/responses/NotCapable" }
+        "503":
+          description: The backend is unreachable or refused. Retryable.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+components:
+  securitySchemes:
+    mutualTLS:
+      type: mutualTLS
+      description: Server-supported profile. The client is identified by its TLS certificate; the reference Java adapter does not configure client certificates yet.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Baseline alternative where mutual TLS is impractical. A bearer token is replayable if it
+        leaks, so it is the weaker of the two.
+    registeredKey:
+      type: apiKey
+      in: header
+      name: Signing-Authentication
+      description: |
+        Stronger profile: a registered Ed25519 key proves possession per request, and the
+        credential never travels. The request carries the registration ID in
+        `Signing-Authentication`, a millisecond timestamp in
+        `Signing-Authentication-Timestamp`, the purpose in `Signing-Authentication-Purpose`, the
+        base64 signature in `Signing-Authentication-Signature`, and an optional key ID in
+        `Signing-Authentication-Key-Id`. See README.md for the canonical request construction.
+  parameters:
+    KeyUri:
+      name: uri
+      in: query
+      required: true
+      description: |
+        Scheme-qualified key identifier, URL-encoded. The scheme selects the service, so a service
+        rejects a URI whose scheme is not its own; everything after the scheme is that service's
+        business and is never parsed by the caller.
+      schema:
+        type: string
+        examples: ["pkcs11://slot-0/issuer-key", "vault://transit/keys/issuer-1"]
+
+  schemas:
+    Algorithm:
+      type: string
+      description: Algorithm identifier. Ordinary algorithms use JOSE names; profiles may define additional names.
+      examples: ["ES256", "EdDSA", "ML-DSA-65"]
+
+    KeyRef:
+      type: object
+      required: [uri, publicKeyDocument, algorithm, usages]
+      properties:
+        uri:
+          type: string
+          examples: ["pkcs11://slot-0/issuer-key"]
+        publicKeyDocument:
+          type: object
+          description: |
+            The key's public half or profile-specific public key document. Travels with the reference because callers need it constantly —
+            JWKS, `kid` derivation, the SubjectPublicKeyInfo of a certificate request — and asking
+            for it every time would be a round-trip for public data.
+          additionalProperties: true
+        algorithm: { $ref: "#/components/schemas/Algorithm" }
+        usages:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/KeyUsage" }
+
+    KeyUsage:
+      type: string
+      enum: [SIGN, KEY_AGREEMENT, UNWRAP]
+      description: Technical operation permitted for this provider-held key.
+
+    Capabilities:
+      type: object
+      required: [scheme, supportedAlgorithms, digestSigningAlgorithms, supportedOperations, canCreate, canImport, canDelete, contentKeyAlgorithms]
+      properties:
+        scheme:
+          type: string
+          description: URI scheme this service answers to, without separator.
+          examples: ["pkcs11"]
+        supportedAlgorithms:
+          type: array
+          items: { $ref: "#/components/schemas/Algorithm" }
+        digestSigningAlgorithms:
+          type: array
+          description: |
+            The subset of `supportedAlgorithms` that can sign a caller-supplied digest. Hash-then-sign
+            algorithms (`ES*`, `RS*`, `PS*`) generally qualify. The pure schemes do not: JOSE `EdDSA`
+            is PureEd25519 and `ML-DSA-*` signs the message directly, so neither can be reconstructed
+            from a hash. Empty is a valid answer.
+          items: { $ref: "#/components/schemas/Algorithm" }
+        supportedOperations:
+          type: array
+          description: Stable profile operation identifiers implemented by this service.
+          items: { type: string }
+        keylessOperations:
+          type: array
+          description: Profile operations that do not require a keyUri; this is a subset of supportedOperations.
+          items: { type: string }
+        canCreate: { type: boolean }
+        canImport: { type: boolean }
+        canDelete: { type: boolean }
+        contentKeyAlgorithms:
+          type: array
+          description: JWE key-management algorithms supported by the content-key operation.
+          items: { type: string }
+        clientAcceptance:
+          type: string
+          enum: [allow-list, platform-assisted]
+          description: |
+            How this service learns which clients to accept. `allow-list` means its operator
+            configures their public keys; `platform-assisted` additionally lets an accepted client
+            introduce another one through `/auth/clients`, which moves public keys only. Absent
+            from services that predate clients.
+
+    Health:
+      type: object
+      required: [healthy]
+      properties:
+        healthy: { type: boolean }
+        latencyMillis:
+          type: integer
+          format: int64
+          description: Round-trip to the backend, when it could be measured.
+        error:
+          type: string
+          description: Present when unhealthy. Safe to show an operator; never carries key material.
+
+    CreateKeyRequest:
+      type: object
+      required: [keyId, algorithm]
+      properties:
+        keyId:
+          type: string
+          description: Caller-chosen provider-local key identifier. When namespace is supplied, the service prefixes it.
+        algorithm: { $ref: "#/components/schemas/Algorithm" }
+        namespace:
+          type: string
+          pattern: '^kc/[0-9a-fA-F-]{36}$'
+          description: Optional logical-key namespace, formatted as kc/<key UUID>.
+        usages:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/KeyUsage" }
+
+    ImportKeyRequest:
+      type: object
+      required: [keyId, algorithm, privateJwk]
+      properties:
+        keyId: { type: string }
+        algorithm: { $ref: "#/components/schemas/Algorithm" }
+        namespace:
+          type: string
+          pattern: '^kc/[0-9a-fA-F-]{36}$'
+          description: Optional logical-key namespace, formatted as kc/<key UUID>.
+        usages:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/KeyUsage" }
+        privateJwk:
+          type: object
+          description: A JWK carrying the private half. Sent only over the transport, never stored by the caller.
+          additionalProperties: true
+
+    SignRequest:
+      type: object
+      description: |
+        Supply exactly one of `message` or `digest`. Sending both, or neither, is a `422`.
+      required: [keyUri, algorithm]
+      oneOf:
+        - required: [message]
+          title: Sign a message
+        - required: [digest, digestAlgorithm]
+          title: Sign a digest
+      properties:
+        keyUri: { type: string }
+        algorithm: { $ref: "#/components/schemas/Algorithm" }
+        message:
+          type: string
+          format: byte
+          description: |
+            base64 of the raw bytes to sign — the full message, not a digest, and not a string
+            reinterpreted as UTF-8. Arbitrary binary (CBOR, a certificate's TBS) has to survive
+            intact. Accepted for every algorithm in `supportedAlgorithms`; the service applies
+            whatever hashing the algorithm prescribes.
+        digest:
+          type: string
+          format: byte
+          description: |
+            base64 of a digest the caller computed. Accepted only for algorithms listed in
+            `digestSigningAlgorithms`.
+
+            Chosen over `message` when the service should not see what is being signed — a signing
+            service operated by someone else learns nothing about a credential's contents from its
+            hash — or when the payload is large enough that shipping it twice is wasteful.
+        digestAlgorithm:
+          type: string
+          description: |
+            The hash that produced `digest`. Must be the one the signature algorithm prescribes
+            (`ES256` and `RS256` require `SHA-256`, `ES384` `SHA-384`, and so on); a mismatch is a
+            `422` rather than a signature over the wrong construction.
+          examples: ["SHA-256", "SHA-384", "SHA-512"]
+
+    SignResponse:
+      type: object
+      required: [signature, algorithm]
+      properties:
+        signature:
+          type: string
+          format: byte
+          description: |
+            base64 of the signature in its JOSE encoding for the algorithm, as RFC 7518 defines it:
+            fixed-width R‖S for `ES*`, PKCS#1 v1.5 for `RS*`, PSS for `PS*`, the raw signature for
+            `EdDSA` and `ML-DSA-*`. Fixed here rather than left per service so two backends signing
+            with the same algorithm produce interchangeable output. A caller needing X.509 or CMS
+            re-encodes — for ECDSA, wrapping R‖S into an ECDSA-Sig-Value DER sequence.
+        algorithm: { $ref: "#/components/schemas/Algorithm" }
+
+    ContentKeyRequest:
+      type: object
+      required: [keyUri, algorithm, enc]
+      properties:
+        keyUri: { type: string }
+        algorithm:
+          type: string
+          enum: [ECDH-ES, ECDH-ES+A128KW, ECDH-ES+A192KW, ECDH-ES+A256KW, RSA-OAEP-256]
+        enc:
+          type: string
+          description: JWE content-encryption method used to size the returned key.
+        epk:
+          type: object
+          description: Ephemeral public key from the JWE protected header; required for ECDH.
+          additionalProperties: true
+        apu: { type: string, description: Base64url agreement party U info. }
+        apv: { type: string, description: Base64url agreement party V info. }
+        encryptedKey:
+          type: string
+          format: byte
+          description: JWE encrypted_key bytes, required for key-wrap and RSA algorithms.
+
+    ContentKeyResponse:
+      type: object
+      required: [contentKey]
+      properties:
+        contentKey:
+          type: string
+          format: byte
+          description: The per-message content-encryption key bytes.
+
+    OperationRequest:
+      type: object
+      required: [operation, input]
+      properties:
+        operation:
+          type: string
+          description: Stable operation identifier advertised by the provider.
+        operationId:
+          type: string
+          description: Existing operation instance to continue, when the previous response was PENDING.
+        keyUri:
+          type: string
+          description: Required for key-bound operations and omitted for operations listed in keylessOperations.
+        input:
+          type: object
+          description: Operation-specific input. See the profile schema for the selected operation.
+          additionalProperties: true
+
+    OperationResponse:
+      type: object
+      required: [operation, status]
+      oneOf:
+        - title: Completed operation
+          required: [result]
+          properties:
+            status: { const: COMPLETED }
+            result:
+              type: object
+              additionalProperties: true
+        - title: Pending operation
+          required: [operationId, interaction]
+          properties:
+            status: { const: PENDING }
+            operationId: { type: string, minLength: 1 }
+            interaction:
+              type: object
+              additionalProperties: true
+      properties:
+        operation: { type: string }
+        status:
+          type: string
+          enum: [COMPLETED, PENDING]
+        result:
+          type: object
+          description: Operation-specific result, required when status is COMPLETED.
+          additionalProperties: true
+        operationId:
+          type: string
+          description: Operation instance to use for a continuation request; required when status is PENDING.
+        interaction:
+          type: object
+          description: Authorization or continuation data, required when status is PENDING.
+          additionalProperties: true
+
+    Client:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: The client's name, as it is given when a registration is opened.
+          examples: ["issuer"]
+        publicKey:
+          type: string
+          format: byte
+          description: Accepted Ed25519 public key, included when listing so callers can detect stale client credentials.
+        registered:
+          type: boolean
+          description: Whether the client has completed a registration with this service.
+        lastUse:
+          type: string
+          format: date-time
+          nullable: true
+          description: Most recent authenticated request for this client, when available.
+
+    Grant:
+      type: object
+      required: [client, purposes]
+      properties:
+        client: { type: string }
+        purposes:
+          type: array
+          items:
+            type: string
+            enum: [key-management, signing, operations, decrypt, read]
+
+    Registration:
+      type: object
+      required: [registrationId, psk]
+      properties:
+        registrationId: { type: string }
+        psk:
+          type: string
+          format: byte
+          description: Pre-shared key. The client stores it and does not send it per request.
+
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Authentication missing, malformed, expired, or replayed.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: |
+        The caller is authenticated but not allowed: an unaccepted client, a purpose it was not
+        granted on the requested scope, or a purpose that disagrees with the request it signed.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnknownKey:
+      description: No such key, or its URI scheme does not belong to this service.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnsupportedAlgorithm:
+      description: |
+        The algorithm is outside `supportedAlgorithms`, or it disagrees with the key's own.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    InvalidOperation:
+      description: The operation request is invalid.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotCapable:
+      description: |
+        The operation exists in the protocol but this backend cannot perform it. Distinct from 404,
+        which means the key is unknown, and from 422, which means the request was wrong.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }

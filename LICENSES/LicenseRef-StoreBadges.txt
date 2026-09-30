@@ -1,0 +1,6 @@
+The App Store badge is a trademark of Apple Inc. The Google Play badge is a
+trademark of Google LLC. Neither is licensed under the Apache License. Use them
+only as permitted by the respective owner's marketing guidelines:
+
+- https://developer.apple.com/app-store/marketing/guidelines/
+- https://partnermarketinghub.withgoogle.com/brands/google-play/

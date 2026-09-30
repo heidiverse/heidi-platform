@@ -1,0 +1,43 @@
+{
+	"$schema": "node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"includes": [
+			"index.html",
+			"src/**/*.{tsx,ts,jxs,js}",
+			"!src/routeTree.gen.ts",
+			"!src/lib/hooks/aifc.ts"
+		]
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"a11y": {
+				"noSvgWithoutTitle": "off",
+				"noLabelWithoutControl": "off"
+			},
+			"style": {
+				"noNonNullAssertion": "off",
+				"noDefaultExport": "info"
+			},
+			"correctness": {
+				"useExhaustiveDependencies": "off",
+				"useUniqueElementIds": "off",
+				"noUnusedImports": {
+					"fix": "safe",
+					"level": "warn"
+				}
+			}
+		}
+	}
+}

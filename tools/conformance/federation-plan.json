@@ -1,0 +1,9 @@
+{
+  "alias": "heidi-federation",
+  "description": "Heidi OpenID Federation deployed entity",
+  "federation": {
+    "entity_identifier": "${HEIDI_CONFORMANCE_ENTITY_IDENTIFIER}",
+    "de_trust_anchor": "${HEIDI_CONFORMANCE_TRUST_ANCHOR}",
+    "de_trust_anchor_jwks": ${HEIDI_CONFORMANCE_TRUST_ANCHOR_JWKS}
+  }
+}

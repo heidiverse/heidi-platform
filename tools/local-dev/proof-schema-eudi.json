@@ -1,0 +1,14 @@
+{
+  "title": "EUDI Test PID presentation",
+  "purpose": "Local EUDI profile testing",
+  "presentationProfileId": "EUDI_PRESENTATION_2026_1",
+  "verifierTrustSystem": "EUDI",
+  "validationMode": "DISABLED",
+  "verifierClientIdScheme": "x509_hash",
+  "credentialSchemes": [
+    {
+      "id": "6e8b5fb0-4c27-4a11-91d7-cf0a7c5b5d02",
+      "attributes": [1, 2]
+    }
+  ]
+}

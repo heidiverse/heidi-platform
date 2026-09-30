@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Install signer interface
+description: >
+  Installs the artifact staged by the build-signer-interface action into the
+  runner's local Maven repository. heidi-software-signerinterface is not
+  published to any remote repository, so every Maven reactor that depends on it
+  (heidi-platform-api via heidi-entity-service, heidi-issuer-backend via
+  heidi-issuer-service, and heidi-verifier-backend via the shared signing client)
+  needs this before it can resolve its dependencies.
+
+inputs:
+  artifact-name:
+    description: Name of the artifact uploaded by build-signer-interface.
+    required: false
+    default: signer-interface-m2
+
+runs:
+  using: composite
+  steps:
+    - name: Download signer interface artifacts
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: signer-m2
+
+    - name: Install into Maven Local
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$GITHUB_WORKSPACE/.m2repo/org"
+        cp -r signer-m2/heidiverse "$GITHUB_WORKSPACE/.m2repo/org/"

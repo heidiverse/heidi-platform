@@ -1,0 +1,1 @@
+ALTER TABLE t_issuer ADD COLUMN eudi_trust_own_pki BOOLEAN NOT NULL DEFAULT FALSE;

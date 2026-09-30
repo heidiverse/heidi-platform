@@ -1,0 +1,430 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  # Re-run a component without pushing an empty commit. Always builds
+  # everything - see `changes` below.
+  workflow_dispatch:
+
+# Jobs that need a Docker daemon (Testcontainers, the docker CLI) run directly
+# on the runner, where the daemon is native. The others run in a `container:`
+# that pins their toolchain.
+
+permissions:
+  contents: read
+
+# Container jobs default to `sh`, which has no `pipefail` and no arrays. Every
+# image used here ships bash, so ask for it explicitly rather than writing to
+# the lowest common denominator.
+
+# Pin the Maven local repository into the workspace. Deliberately a relative
+# path: Maven resolves it against the working directory (the workspace root for
+# every mvn step here), so unlike ${{ github.workspace }} it needs no expression
+# and therefore cannot resolve to the host path inside a job container.
+env:
+  MAVEN_ARGS: -Dmaven.repo.local=.m2repo -ntp
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
+
+jobs:
+  changes:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    container: buildpack-deps:bookworm-scm
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    outputs:
+      api: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.api == 'true' }}
+      issuer: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.issuer == 'true' }}
+      verifier: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.verifier == 'true' }}
+      web: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.web == 'true' }}
+      signer: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.signer == 'true' }}
+      signing-service: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.signing-service == 'true' }}
+      conformance: ${{ steps.mode.outputs.unfiltered == 'true' || steps.filter.outputs.conformance == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Decide whether to filter
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual run - building every component."
+            echo "unfiltered=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            echo "Push to ${DEFAULT_BRANCH} - building every component."
+            echo "unfiltered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "unfiltered=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Which paths map to which component lives in .github/file-filters.yml,
+      # so the mapping has one home rather than being buried in this workflow.
+      - name: Detect changed components
+        id: filter
+        if: steps.mode.outputs.unfiltered != 'true'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: .github/file-filters.yml
+          # Detect changes with `git diff` instead of the pull-request Files API.
+          token: ''
+
+  # Every file needs an SPDX header or a REUSE.toml entry. Cheap, so it runs on
+  # every change instead of going through the path filters.
+  licensing:
+    name: Check License Headers
+    runs-on: ubuntu-latest
+    container: python:3.13-slim
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint
+        run: |
+          pip install --no-cache-dir 'reuse[charset-normalizer]==6.2.0'
+          reuse lint
+
+  # ---------------------------------------------------------------------------
+  # Native signing crypto
+  #
+  # Kotlin Multiplatform + Rust/uniffi, an order of magnitude more expensive than
+  # the Maven reactors that consume it, so it is built once here and passed to
+  # the backend jobs as an artifact. It also runs whenever one of those jobs
+  # changes, because they cannot resolve their dependencies without it.
+  # ---------------------------------------------------------------------------
+
+  signer-interface:
+    name: Build native signing crypto
+    needs: changes
+    if: >-
+      needs.changes.outputs.signer == 'true' ||
+      needs.changes.outputs.api == 'true' ||
+      needs.changes.outputs.issuer == 'true' ||
+      needs.changes.outputs.verifier == 'true' ||
+      needs.changes.outputs.conformance == 'true' ||
+      needs.changes.outputs.signing-service == 'true'
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and stage signer interface
+        uses: ./.github/actions/build-signer-interface
+
+      - name: Test heidi-signing
+        working-directory: heidi-signing-crypto/heidi-signing
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/heidi-signing-crypto/target
+          CARGO_PROFILE_DEV_DEBUG: "0"
+        run: cargo test
+
+  # ---------------------------------------------------------------------------
+  # Maven reactors
+  # ---------------------------------------------------------------------------
+
+  api:
+    name: Build heidi-platform-api
+    needs: [ changes, signer-interface ]
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      # Full reactor, tests included. The data modules start Postgres through
+      # Testcontainers, which uses the Docker daemon present on the runner.
+      - name: Build and test
+        run: mvn -B -f heidi-platform-api/pom.xml verify
+
+      - name: Verify committed OpenAPI specifications
+        run: |
+          mvn -B -f heidi-platform-api/pom.xml \
+            -pl heidi-platform-api-ws -am \
+            -Dtest=OpenApiSnapshotIntegrationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dopenapi.update=true test
+          git diff --exit-code -- docs/openapi
+
+  issuer:
+    name: Build heidi-issuer-backend
+    needs: [ changes, signer-interface ]
+    if: needs.changes.outputs.issuer == 'true'
+    runs-on: ubuntu-latest
+    container: maven:3.9-eclipse-temurin-21
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      - name: Build and test
+        run: mvn -B -f heidi-issuer-backend/pom.xml verify
+
+  verifier:
+    name: Build heidi-verifier-backend
+    needs: [ changes, signer-interface ]
+    if: needs.changes.outputs.verifier == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build signing adapters
+        uses: ./.github/actions/build-signing-adapters
+
+      - name: Build and test
+        run: mvn -B -f heidi-verifier-backend/pom.xml verify
+
+  signing-service:
+    name: Build heidi-signing-service
+    needs: [ changes, signer-interface ]
+    if: needs.changes.outputs.signing-service == 'true'
+    runs-on: ubuntu-latest
+    container: maven:3.9-eclipse-temurin-21
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Build and test
+        run: mvn -B -f heidi-signing-service/pom.xml verify
+
+  # ---------------------------------------------------------------------------
+  # OpenID Federation conformance
+  # ---------------------------------------------------------------------------
+
+  federation-conformance:
+    name: OpenID Federation conformance
+    needs: [ changes, signer-interface ]
+    if: >-
+      always() &&
+      (needs.changes.outputs.conformance == 'true' ||
+       needs.changes.outputs.api == 'true' ||
+       needs.changes.outputs.verifier == 'true') &&
+      (needs.signer-interface.result == 'success' ||
+       needs.signer-interface.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up just
+        uses: extractions/setup-just@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        if: needs.signer-interface.result == 'success'
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Run OpenID Federation conformance
+        env:
+          CONFORMANCE_SIGNER_INTERFACE_INSTALLED: ${{ needs.signer-interface.result == 'success' && 'true' || 'false' }}
+        run: just conformance-federation
+
+      - name: Upload conformance results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: openid-federation-conformance
+          path: tmp/conformance
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # OpenID OID4VCI/OID4VP conformance
+  # ---------------------------------------------------------------------------
+
+  oid4vc-conformance:
+    name: OpenID OID4VCI/OID4VP conformance
+    needs: [ changes, signer-interface ]
+    if: >-
+      always() &&
+      (needs.changes.outputs.conformance == 'true' ||
+       needs.changes.outputs.api == 'true' ||
+       needs.changes.outputs.issuer == 'true' ||
+       needs.changes.outputs.verifier == 'true') &&
+      (needs.signer-interface.result == 'success' ||
+       needs.signer-interface.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up just
+        uses: extractions/setup-just@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven repository
+        uses: ./.github/actions/cache-maven
+
+      - name: Install signer interface
+        if: needs.signer-interface.result == 'success'
+        uses: ./.github/actions/install-signer-interface
+
+      - name: Run OpenID OID4VCI/OID4VP conformance
+        env:
+          CONFORMANCE_SIGNER_INTERFACE_INSTALLED: ${{ needs.signer-interface.result == 'success' && 'true' || 'false' }}
+        run: just conformance-oid4vc
+
+      - name: Upload conformance results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: openid-oid4vc-conformance
+          path: tmp/conformance
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # heidi-web
+  # ---------------------------------------------------------------------------
+
+  web:
+    name: Build heidi-web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    container: buildpack-deps:bookworm-scm
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: heidi-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm runtime dependency
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends libatomic1
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: heidi-web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test
+
+      # `pnpm run build` is `tsc -b && vite build`, so this type-checks too.
+      - name: Build
+        run: pnpm run build

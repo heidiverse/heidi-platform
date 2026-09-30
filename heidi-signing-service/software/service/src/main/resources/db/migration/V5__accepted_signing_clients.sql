@@ -1,0 +1,7 @@
+CREATE TABLE t_signing_auth_client
+(
+    client_name TEXT PRIMARY KEY,
+    public_key  TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

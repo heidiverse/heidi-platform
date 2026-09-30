@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Cache Maven repository
+description: >
+  Caches the pinned Maven local repository. This replaces setup-java's
+  `cache: maven`, which caches ${HOME}/.m2 as the JavaScript action sees it - in
+  a container job that is not the directory Maven actually reads, so it would
+  cache an empty path and restore nothing.
+
+runs:
+  using: composite
+  steps:
+    # The key is computed by a step rather than by hashFiles() in the `key:`
+    # expression below, because hashFiles() runs on the host and is evaluated
+    # again when the post step saves the cache. By then jib has written
+    # target/jib-cache/layers/<digest> directories as mode 0700 - and in a
+    # container job they are owned by root, while the host runner walking them
+    # is not. That walk throws, and `Fail to hash files under directory` fails
+    # the whole job after the image has already been pushed.
+    #
+    # A step runs where the files were created - inside the container, as the
+    # user that owns them - and walks the tree itself, pruning the directories
+    # a build writes into. It runs before the cache is restored, so it only
+    # ever sees the checkout. The post step then reuses the value it produced
+    # instead of walking the workspace again.
+    #
+    # `find` rather than `git ls-files`: the workspace is created by the host
+    # runner but container steps run as root, so git refuses the repository as
+    # dubiously owned unless every caller remembers to set safe.directory.
+    - name: Compute cache key
+      id: key
+      shell: bash
+      run: |
+        set -euo pipefail
+        hash="$(find . \
+            \( -name target -o -name .m2repo -o -name node_modules -o -name .git \) -prune \
+            -o -name pom.xml -print0 \
+          | sort -z \
+          | xargs -0 -r sha256sum \
+          | sha256sum \
+          | cut -d' ' -f1)"
+        echo "value=maven-${RUNNER_OS}-${hash}" >> "$GITHUB_OUTPUT"
+
+    # Relative path: actions/cache resolves it against the workspace in whatever
+    # context it runs, so it works with and without a job container.
+    - name: Cache Maven repository
+      uses: actions/cache@v6
+      with:
+        path: .m2repo
+        key: ${{ steps.key.outputs.value }}
+        restore-keys: |
+          maven-${{ runner.os }}-

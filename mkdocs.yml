@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+site_name: Heidi Platform
+site_description: Service, configuration, deployment, and integration documentation for Heidi Platform.
+site_url: https://heidi-platform.readthedocs.io/
+repo_url: https://github.com/heidiverse/heidi-platform
+docs_dir: docs
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Architecture: architecture.md
+  - Services:
+      - Overview: services/index.md
+      - Platform API: services/platform-api.md
+      - Issuer: services/issuer.md
+      - Verifier: services/verifier.md
+      - Signing service: services/signing-service.md
+      - Signing protocol: signing-protocol.md
+      - Cockpit: services/cockpit.md
+  - Operations:
+      - Deployment: deployment.md
+      - Authentication and authorization: authentication.md
+      - Configuration: configuration.md
+      - Configuration inventory: configuration-inventory.md
+  - Extensibility: extensibility.md
+  - Examples:
+      - HSM-backed signing service: examples/custom-hsm-signing-service.md
+  - Integration:
+      - Integrator guide: integration-guide.md
+      - API structure: api-structure.md
+      - OpenAPI contracts: api-contracts.md
+  - Cockpit:
+      - Identity guide: cockpit-identity-guide.md
+  - Glossary: glossary.md

@@ -1,0 +1,35 @@
+# Licensing for files that carry no SPDX header: formats without comments,
+# generated files, and Flyway migrations (editing them changes their checksum).
+# A header in the file itself takes precedence. Checked by `reuse lint` in CI.
+version = 1
+
+[[annotations]]
+path = [
+    "NOTICE",
+    "**/*.md",
+    "**/*.json",
+    "**/*.jsonl",
+    "**/*.svg",
+    "**/*.png",
+    "**/banner.txt",
+    "**/db/migration/**",
+    "**/.vscode/**",
+    ".idea/**",
+    "**/Cargo.lock",
+    "heidi-web/pnpm-lock.yaml",
+    "heidi-web/jlc-*.tgz",
+    "heidi-web/src/routeTree.gen.ts",
+]
+SPDX-FileCopyrightText = "Ubique Innovation AG and Heidi contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "heidi-signing-crypto/gradle/wrapper/gradle-wrapper.jar"
+SPDX-FileCopyrightText = "Gradle Inc. and the original authors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Store badges are Apple and Google trademarks, not project code.
+[[annotations]]
+path = ["heidi-web/public/assets/appstore-badge.png", "heidi-web/public/assets/playstore-badge.png"]
+SPDX-FileCopyrightText = ["Apple Inc.", "Google LLC"]
+SPDX-License-Identifier = "LicenseRef-StoreBadges"

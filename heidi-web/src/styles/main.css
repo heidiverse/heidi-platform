@@ -1,0 +1,263 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Ubique Innovation AG and Heidi contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/lexend";
+
+@custom-variant organisations
+  (&:where(.organisations, .organisations *));
+
+@theme {
+  --aspect-cc: 1.586;
+  --custom-gradient: 135deg, #e5ebf4 5%, #bec8d8 75%;
+
+  --font-sans:
+    "Lexend Variable", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --shadow-2xs: 0 1px rgb(10 39 54 / 0.05);
+  --shadow-xs: 0 1px 2px 0 rgb(10 39 54 / 0.05);
+  --shadow-sm:
+    0 1px 3px 0 rgb(10 39 54 / 0.1), 0 1px 2px -1px rgb(10 39 54 / 0.1);
+  --shadow-md:
+    0 4px 6px -1px rgb(10 39 54 / 0.1), 0 2px 4px -2px rgb(10 39 54 / 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgb(10 39 54 / 0.1), 0 4px 6px -4px rgb(10 39 54 / 0.1);
+  --shadow-xl:
+    0 20px 25px -5px rgb(10 39 54 / 0.1), 0 8px 10px -6px rgb(10 39 54 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(10 39 54 / 0.25);
+
+  /* Primitives */
+  --color-glacier: #00829c;
+  --color-glacier-5: #e9fbfc;
+  --color-glacier-10: #dcf4f7;
+  --color-glacier-20: #bde4ea;
+  --color-glacier-30: #a7d9e1;
+  --color-glacier-40: #87c9d4;
+  --color-glacier-60: #5cb3c3;
+  --color-glacier-80: #319db2;
+  --color-glacier-100: #00829c;
+  --color-glacier-120: #01728c;
+  --color-glacier-140: #01607a;
+  --color-glacier-160: #014f68;
+  --color-glacier-180: #013e57;
+  --color-glacier-200: #012d45;
+  --color-glacier-220: #0a2736;
+  --color-green: #00a87e;
+  --color-green-10: #d9f2ec;
+  --color-green-120: #008665;
+  --color-orange: #ff6200;
+  --color-orange-10: #ffe7d9;
+  --color-orange-120: #cc4e00;
+  --color-red: #dc0018;
+  --color-red-10: #fbe5e8;
+  --color-red-120: #b00013;
+  --color-violet: #884c9c;
+  --color-violet-10: #ede4f0;
+  --color-violet-120: #6d3d7d;
+
+  /* Tokens */
+  /* heidi */
+  --color-text-primary: color-mix(
+    in oklab,
+    var(--color-glacier-200) 50%,
+    var(--color-black)
+  );
+  --color-text-secondary: var(--color-glacier-100);
+  --color-text-invert: var(--color-white);
+  --color-text-invert-secondary: var(--color-glacier-40);
+  --color-text-disabled: var(--color-glacier-40);
+
+  --color-accent-primary: var(--color-black);
+  --color-accent-secondary: var(--color-glacier-100);
+  --color-accent-orange: var(--color-orange);
+  --color-accent-green: var(--color-green);
+  --color-accent-red: var(--color-red);
+  --color-accent-violet: var(--color-violet);
+
+  --color-surface: color-mix(
+    in oklab,
+    var(--color-glacier-5) 2.5%,
+    var(--color-white)
+  );
+  --color-surface-secondary: var(--color-glacier-10);
+  --color-surface-tertiary: var(--color-glacier-20);
+  --color-surface-light-blue: var(--color-glacier-40);
+  --color-surface-disabled: var(--color-glacier-40);
+  --color-surface-invert: var(--color-glacier-180);
+  --color-surface-invert-transparent: color-mix(
+    in oklab,
+    var(--color-black) 70%,
+    transparent
+  );
+  --color-surface-light-green: var(--color-green-10);
+  --color-surface-light-red: var(--color-red-10);
+
+  --color-border: color-mix(
+    in oklab,
+    var(--color-glacier-140) 15%,
+    var(--color-white)
+  );
+  --color-border-primary: var(--color-glacier-20);
+  --color-border-secondary: var(--color-glacier-30);
+
+  --color-infocard-success: var(--color-green);
+  --color-infocard-success-light: var(--color-green-10);
+  --color-infocard-error: var(--color-red);
+  --color-infocard-error-light: var(--color-red-10);
+  --color-infocard-warning: var(--color-orange);
+  --color-infocard-warning-light: var(--color-orange-10);
+  --color-verifier-blue: hsl(201 100% 36%);
+  --color-verifier-lightBlue: hsl(202 48% 38.4%);
+  --color-verifier-background: hsl(202 29.9% 69.2%);
+
+  /* shadcn */
+  --color-background: color-mix(
+    in oklab,
+    var(--color-glacier-120) 5%,
+    var(--color-white)
+  );
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary: var(--color-text-primary);
+  --color-primary-foreground: var(--color-text-invert);
+  --color-secondary: color-mix(
+    in oklab,
+    var(--color-glacier-160) 5%,
+    var(--color-white)
+  );
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted: color-mix(
+    in oklab,
+    var(--color-glacier-160) 5%,
+    var(--color-white)
+  );
+  --color-muted-foreground: color-mix(
+    in oklab,
+    var(--color-glacier-180) 50%,
+    var(--color-white)
+  );
+  --color-accent: color-mix(
+    in oklab,
+    var(--color-glacier-180) 7.5%,
+    var(--color-white)
+  );
+  --color-accent-foreground: var(--color-text-primary);
+  --color-destructive: var(--color-red);
+  --color-destructive-foreground: var(--color-white);
+  --color-input: var(--color-surface);
+  --color-ring: color-mix(
+    in oklab,
+    var(--color-glacier-180) 25%,
+    var(--color-white)
+  );
+  --color-sidebar: var(--color-glacier-180);
+  --color-sidebar-foreground: var(--color-white);
+  --color-sidebar-primary: var(--color-black);
+  --color-sidebar-primary-foreground: hsl(0 0% 98%);
+  --color-sidebar-accent: var(--color-muted);
+  --color-sidebar-accent-foreground: var(--color-text-primary);
+  --color-sidebar-border: var(--color-glacier-160);
+  --color-sidebar-ring: color-mix(
+    in oklab,
+    var(--color-glacier-180) 75%,
+    var(--color-white)
+  );
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border, currentColor);
+  }
+
+  /* fix dropdown submenu on mobile */
+  div[data-radix-popper-content-wrapper]:has(> div[data-side="right"]) {
+    left: calc(
+      min(
+        0px,
+        var(--radix-popper-available-width) +
+          (-1 * var(--radix-popper-anchor-width))
+      )
+    ) !important;
+  }
+
+  div[data-radix-popper-content-wrapper]:has(> div[data-side="left"]) {
+    left: calc(
+      max(
+        0px,
+        (-1 * var(--radix-popper-available-width)) +
+          var(--radix-popper-anchor-width)
+      )
+    ) !important;
+  }
+
+  @variant organisations {
+    /* heidi */
+    --color-text-primary: var(--color-white);
+    --color-text-invert: var(--color-black);
+    --color-accent-primary: var(--color-white);
+    --color-surface: var(--color-glacier-220);
+    --color-border: color-mix(
+      in oklab,
+      var(--color-glacier-220) 92.5%,
+      var(--color-white)
+    );
+
+    /* shadcn */
+    --color-background: color-mix(
+      in oklab,
+      var(--color-glacier-220) 85%,
+      var(--color-black)
+    );
+    --color-foreground: var(--color-white);
+    --color-card: var(--color-surface);
+    --color-card-foreground: var(--color-text-primary);
+    --color-popover: var(--color-surface);
+    --color-popover-foreground: var(--color-text-primary);
+    --color-primary: var(--color-white);
+    --color-primary-foreground: var(--color-text-invert);
+    --color-secondary: var(--color-glacier-180);
+    --color-secondary-foreground: var(--color-text-primary);
+    --color-muted: var(--color-glacier-180);
+    --color-muted-foreground: color-mix(
+      in oklab,
+      var(--color-glacier-220) 50%,
+      var(--color-white)
+    );
+    --color-accent: var(--color-glacier-180);
+    --color-destructive: var(--color-red-120);
+    --color-destructive-foreground: var(--color-white);
+    --color-input: var(--color-surface);
+    --color-ring: color-mix(
+      in oklab,
+      var(--color-glacier-220) 75%,
+      var(--color-white)
+    );
+    --color-sidebar: var(--color-glacier-220);
+    --color-sidebar-foreground: var(--color-text-primary);
+    --color-sidebar-primary: var(--color-black);
+    --color-sidebar-primary-foreground: hsl(0 0% 98%);
+    --color-sidebar-accent: color-mix(
+      in oklab,
+      var(--color-glacier-220) 80%,
+      var(--color-white)
+    );
+    --color-sidebar-accent-foreground: var(--color-text-primary);
+    --color-sidebar-border: var(--color-glacier-200);
+    --color-sidebar-ring: color-mix(
+      in oklab,
+      var(--color-glacier-220) 60%,
+      var(--color-white)
+    );
+  }
+}

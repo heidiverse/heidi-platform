@@ -1,0 +1,14 @@
+{
+  "title": "Custom Test PID presentation",
+  "purpose": "Local custom profile testing",
+  "presentationProfileId": "CUSTOM_PRESENTATION_2026_1",
+  "verifierTrustSystem": "Custom",
+  "validationMode": "DISABLED",
+  "verifierClientIdScheme": "x509_san_dns",
+  "credentialSchemes": [
+    {
+      "id": "5e8b5fb0-4c27-4a11-91d7-cf0a7c5b5d01",
+      "attributes": [1, 2]
+    }
+  ]
+}

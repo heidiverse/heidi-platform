@@ -1,0 +1,2 @@
+ALTER TABLE t_signing_key
+    ADD COLUMN usages TEXT NOT NULL DEFAULT 'SIGN';

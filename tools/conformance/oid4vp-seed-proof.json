@@ -1,0 +1,12 @@
+{
+  "title": "OIDF Test PID presentation",
+  "purpose": "OpenID Foundation conformance testing",
+  "validationMode": "DISABLED",
+  "verifierClientIdScheme": "x509_hash",
+  "credentialSchemes": [
+    {
+      "id": "5e8b5fb0-4c27-4a11-91d7-cf0a7c5b5d01",
+      "attributes": [1, 2]
+    }
+  ]
+}

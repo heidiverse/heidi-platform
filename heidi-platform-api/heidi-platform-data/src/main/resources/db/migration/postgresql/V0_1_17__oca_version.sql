@@ -1,0 +1,2 @@
+ALTER TABLE t_style
+    ADD COLUMN oca_version TEXT NOT NULL DEFAULT 'LEGACY';
