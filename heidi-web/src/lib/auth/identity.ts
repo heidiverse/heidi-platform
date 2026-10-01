@@ -143,3 +143,17 @@ export async function getCurrentUser() {
 export function updateProfile(update: ProfileUpdate) {
   return identityProvider.updateProfile(update);
 }
+
+export async function refreshToken() {
+  if (!runtimeConfig.tokenRefreshUrl) {
+    throw new Error("Token refresh is not configured");
+  }
+
+  const res = await fetchWithRedirect(runtimeConfig.tokenRefreshUrl, {
+    method: "POST",
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    throw new Error("Could not refresh authentication token");
+  }
+}

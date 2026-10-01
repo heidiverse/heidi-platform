@@ -14,6 +14,8 @@ export interface RuntimeConfig {
    * is no session to end, and the cockpit offers no sign-out.
    */
   logoutUrl?: string;
+  /** Where the authenticating proxy rotates the current session tokens. */
+  tokenRefreshUrl?: string;
 }
 
 /**

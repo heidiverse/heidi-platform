@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Ubique Innovation AG and Heidi contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IconPhotoUp, IconTrash } from "@tabler/icons-react";
+import {
+  IconLoader2,
+  IconPhotoUp,
+  IconRefresh,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useForm } from "@tanstack/react-form";
 import { FormattedMessage, useIntl } from "react-intl";
 import { z } from "zod";
@@ -19,8 +24,12 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useUpdateUserMetadataMutation } from "@/lib/auth/mutations";
+import {
+  useRefreshTokenMutation,
+  useUpdateUserMetadataMutation,
+} from "@/lib/auth/mutations";
 import { useUser } from "@/lib/hooks/use-user";
+import { runtimeConfig } from "@/lib/runtime-config";
 import { cn, fileToDataURL } from "@/lib/utils";
 
 export function UpdateProfileDialog({
@@ -33,6 +42,8 @@ export function UpdateProfileDialog({
   const user = useUser();
   const { $t } = useIntl();
   const { mutate: updateUserMetadata } = useUpdateUserMetadataMutation();
+  const { mutate: refreshToken, isPending: isRefreshingToken } =
+    useRefreshTokenMutation();
   const profileFormSchema = z.object({
     displayName: z.string().min(
       1,
@@ -242,6 +253,25 @@ export function UpdateProfileDialog({
             </form.Field>
           </div>
           <DialogFooter>
+            {runtimeConfig.tokenRefreshUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                disabled={isRefreshingToken}
+                onClick={() => refreshToken()}
+              >
+                {isRefreshingToken ? (
+                  <IconLoader2 className="animate-spin" />
+                ) : (
+                  <IconRefresh />
+                )}
+                <FormattedMessage
+                  id="common.profile.refreshToken"
+                  defaultMessage="Refresh token"
+                />
+              </Button>
+            )}
             <DialogClose asChild>
               <Button variant="outline">
                 <FormattedMessage id="common.cancel" defaultMessage="Cancel" />

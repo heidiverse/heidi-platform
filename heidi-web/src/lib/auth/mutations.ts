@@ -4,7 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIntl } from "react-intl";
 import { toast } from "sonner";
-import { updateProfile } from "@/lib/auth/identity";
+import { refreshToken, updateProfile } from "@/lib/auth/identity";
 import { userTokenDataOptions } from "@/lib/auth/query-options";
 
 export function useUpdateUserMetadataMutation() {
@@ -26,6 +26,32 @@ export function useUpdateUserMetadataMutation() {
         $t({
           id: "users.toast.update.error",
           defaultMessage: "Failed to update user",
+        }),
+        { description: e.message },
+      );
+    },
+  });
+}
+
+export function useRefreshTokenMutation() {
+  const queryClient = useQueryClient();
+  const { $t } = useIntl();
+  return useMutation({
+    mutationFn: refreshToken,
+    onSuccess: () => {
+      queryClient.invalidateQueries(userTokenDataOptions());
+      toast.success(
+        $t({
+          id: "common.profile.refreshToken.success",
+          defaultMessage: "Token refreshed",
+        }),
+      );
+    },
+    onError: (e) => {
+      toast.error(
+        $t({
+          id: "common.profile.refreshToken.error",
+          defaultMessage: "Failed to refresh token",
         }),
         { description: e.message },
       );
