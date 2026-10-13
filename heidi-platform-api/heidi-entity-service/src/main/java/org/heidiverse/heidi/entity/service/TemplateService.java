@@ -23,7 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Objects;
@@ -36,14 +36,14 @@ public class TemplateService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TemplateService.class);
     private static final String I14Y_SOURCE_TYPE = "I14Y_DATASET";
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate;
+    private final RestClient restClient;
     private final TemplateSourceRepository templateSourceRepository;
     private final ImportedTemplateRepository importedTemplateRepository;
     private final I14yService i14yService;
 
     public TemplateService(
             ObjectMapper objectMapper,
-            RestTemplate restTemplate,
+            RestClient restClient,
             TemplateSourceRepository templateSourceRepository,
             ImportedTemplateRepository importedTemplateRepository,
             I14yService i14yService) {
@@ -52,7 +52,7 @@ public class TemplateService {
                         .rebuild()
                         .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                         .build();
-        this.restTemplate = restTemplate;
+        this.restClient = restClient;
         this.templateSourceRepository = templateSourceRepository;
         this.importedTemplateRepository = importedTemplateRepository;
         this.i14yService = i14yService;
@@ -124,7 +124,7 @@ public class TemplateService {
 
     private Template fetchTemplateFromUrl(String url) {
         try {
-            String json = restTemplate.getForObject(url, String.class);
+            String json = restClient.get().uri(url).retrieve().body(String.class);
             return objectMapper.readValue(json, Template.class);
         } catch (Exception e) {
             LOGGER.error("Failed to fetch template from URL: " + url, e);
@@ -134,7 +134,7 @@ public class TemplateService {
 
     private Library fetchLibraryFromUrl(UUID libraryId, String url) {
         try {
-            String json = restTemplate.getForObject(url, String.class);
+            String json = restClient.get().uri(url).retrieve().body(String.class);
             Library library = objectMapper.readValue(json, Library.class);
             return new Library(
                     libraryId, library.key(), library.displayName(), library.templateUrls());

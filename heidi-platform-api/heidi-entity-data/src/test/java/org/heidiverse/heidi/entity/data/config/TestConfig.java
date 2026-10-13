@@ -9,7 +9,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.DefaultUriBuilderFactory;
 
 @Profile("test")
 @SpringBootConfiguration
@@ -18,7 +20,12 @@ import org.springframework.web.client.RestTemplate;
 @EnableJpaRepositories(basePackages = {"org.heidiverse.heidi.entity.data.repository"})
 public class TestConfig {
     @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
+    public RestClient restClient() {
+        var uriFactory = new DefaultUriBuilderFactory();
+        uriFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
+        return RestClient.builder()
+                .requestFactory(new SimpleClientHttpRequestFactory())
+                .uriBuilderFactory(uriFactory)
+                .build();
     }
 }

@@ -10,7 +10,6 @@ import org.heidiverse.heidi.coordinator.service.TokenSignatureService;
 import org.heidiverse.heidi.shared.springdoc.SpringDocConfig;
 import org.hibernate.cfg.AvailableSettings;
 
-import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
@@ -18,7 +17,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.DefaultUriBuilderFactory;
 
 @Configuration
 @EnableMethodSecurity
@@ -43,8 +43,11 @@ public class PlatformApiBaseConfig {
     }
 
     @Bean
-    public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder) {
-        return restTemplateBuilder.build();
+    public RestClient restClient(RestClient.Builder builder) {
+        var uriFactory = new DefaultUriBuilderFactory();
+        uriFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
+        // Keep the configured transport and component encoding for template URLs.
+        return builder.clone().uriBuilderFactory(uriFactory).build();
     }
 
     @Bean

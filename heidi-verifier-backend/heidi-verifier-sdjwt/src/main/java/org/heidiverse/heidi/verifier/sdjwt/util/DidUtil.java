@@ -9,7 +9,9 @@ import org.kapunsdk.trust.did.DidResolver;
 import org.kapunsdk.trust.did.models.DidLogEntry;
 import org.kapunsdk.util.extensions.ValueExtensionKt;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.DefaultUriBuilderFactory;
 
 import uniffi.kapun_crypto_rust.DidVerificationDocument;
 import uniffi.kapun_crypto_rust.Kapun_crypto_rust_jvmKt;
@@ -25,7 +27,17 @@ public class DidUtil {
 
     private static final String DID_TDW_PREFIX = "did:tdw:";
     private static final String DID_WEBVH_PREFIX = "did:webvh:";
-    private static final RestTemplate restTemplate = new RestTemplate();
+    private static final RestClient restClient = createClient();
+
+    private static RestClient createClient() {
+        var uriFactory = new DefaultUriBuilderFactory();
+        uriFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
+        // Keep URLConnection's existing timeout/redirect behavior for DID lookups.
+        return RestClient.builder()
+                .requestFactory(new SimpleClientHttpRequestFactory())
+                .uriBuilderFactory(uriFactory)
+                .build();
+    }
 
     private DidUtil() {
         // Utility class, do not instantiate
@@ -114,10 +126,11 @@ public class DidUtil {
         return URLDecoder.decode(httpsUrl, StandardCharsets.UTF_8);
     }
 
-    /** Uses RestTemplate to fetch the raw DID JSONL document. */
+    /** Fetches the raw DID JSONL document. */
     public static String fetchDidJsonl(String url) throws IOException {
         try {
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            ResponseEntity<String> response =
+                    restClient.get().uri(url).retrieve().toEntity(String.class);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 throw new IOException("Failed to fetch DID document from " + url);
             }
