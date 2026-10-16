@@ -38,6 +38,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Validated
 @RestController
@@ -47,6 +48,7 @@ public class Oid4vpWalletController {
 
     private static final String DID_SCHEME = "decentralized_identifier";
     private static final String X509_HASH_SCHEME = "x509_hash";
+    private static final String OPENID_FEDERATION_SCHEME = "openid_federation";
 
     private final ObjectMapper objectMapper;
     private final ClientIdService clientIdService;
@@ -130,10 +132,19 @@ public class Oid4vpWalletController {
         }
 
         verificationRequestClaimsMap.put("client_id", clientId);
-        // Not sure if this is needed, but we follow the example on
-        // https://www.rfc-editor.org/rfc/rfc9101.html#name-request-object-2
-        // which puts the same value as iss as there is for client_id
-        verificationRequestClaimsMap.put("iss", clientId);
+        if (clientIdScheme == ClientIdService.ClientIdScheme.OPENID_FEDERATION) {
+            // OpenID Federation 1.0 §12.1.1.1: iss is the bare entity identifier, and jti and
+            // exp are required. OID4VP 1.0 §5 has wallets ignore iss and read the client_id.
+            verificationRequestClaimsMap.put("iss", federationEntityId(clientId));
+            verificationRequestClaimsMap.put("jti", UUID.randomUUID().toString());
+            verificationRequestClaimsMap.put(
+                    "exp", verificationRequestService.findExpiry(requestUri).getEpochSecond());
+        } else {
+            // Not sure if this is needed, but we follow the example on
+            // https://www.rfc-editor.org/rfc/rfc9101.html#name-request-object-2
+            // which puts the same value as iss as there is for client_id
+            verificationRequestClaimsMap.put("iss", clientId);
+        }
 
         final var hasIdentity = verificationRequestData.signingIdentity() != null
                 && !verificationRequestData.signingIdentity().isBlank();
@@ -209,6 +220,12 @@ public class Oid4vpWalletController {
 
         // Requests without an identity are refused when created; this guards older rows.
         throw new VpVerificationException("x509_san_dns requires a verifier identity");
+    }
+
+    /** The entity identifier of an {@code openid_federation} client id (OID4VP 1.0 §5.9.3). */
+    private static String federationEntityId(String clientId) {
+        var prefix = OPENID_FEDERATION_SCHEME + ":";
+        return clientId.startsWith(prefix) ? clientId.substring(prefix.length()) : clientId;
     }
 
     private String didKeyId(IdentitySigningService.ResolvedSigner signer) {

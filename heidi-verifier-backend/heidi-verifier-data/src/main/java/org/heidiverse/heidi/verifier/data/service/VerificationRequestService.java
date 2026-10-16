@@ -149,6 +149,14 @@ public class VerificationRequestService {
                 .orElseThrow(() -> new NoSuchElementException("Transaction not found"));
     }
 
+    @Transactional(readOnly = true)
+    public Instant findExpiry(final String requestId) {
+        return verificationRequestRepository
+                .findByRequestId(requestId)
+                .map(VerificationRequestEntity::getExpiresAt)
+                .orElseThrow(() -> new NoSuchElementException("Verification request not found"));
+    }
+
     @Transactional
     public void markStarted(final String requestId) {
         verificationRequestRepository

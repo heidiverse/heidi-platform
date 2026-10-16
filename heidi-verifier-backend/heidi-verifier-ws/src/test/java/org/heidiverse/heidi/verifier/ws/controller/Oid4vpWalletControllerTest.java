@@ -53,6 +53,7 @@ import java.util.List;
 class Oid4vpWalletControllerTest {
 
     private static final String REQUEST_ID = "request-id";
+    private static final Instant REQUEST_EXPIRY = Instant.ofEpochSecond(1_900_000_000L);
 
     @Test
     void swissPresentationUsesDidClientIdByDefault() throws Exception {
@@ -81,6 +82,39 @@ class Oid4vpWalletControllerTest {
         assertEquals("decentralized_identifier:" + did,
                 jwt.getJWTClaimsSet().getStringClaim("client_id"));
         assertEquals(did + "#verifier-key", jwt.getHeader().getKeyID());
+        assertEquals("decentralized_identifier:" + did, jwt.getJWTClaimsSet().getIssuer());
+    }
+
+    @Test
+    void federationPresentationNamesEntityIdAsIssuer() throws Exception {
+        final var entityId = "https://verifier.example/test";
+        final var identitySigningService = mock(IdentitySigningService.class);
+        final var keyPair = TestCertificates.ecKeyPair();
+        when(identitySigningService.resolveSnapshot("original-snapshot"))
+                .thenReturn(
+                        new IdentitySigningService.ResolvedSigner(
+                                TestCertificates.publicJwk(keyPair),
+                                new ECDSASigner((ECPrivateKey) keyPair.getPrivate()),
+                                null,
+                                "federation-key"));
+
+        final var response =
+                controller(
+                                "openid_federation:" + entityId,
+                                "verifier",
+                                "OpenID Federation",
+                                null,
+                                identitySigningService,
+                                "OIDF_PRESENTATION_2026_1")
+                        .fetchVerificationRequest(REQUEST_ID);
+
+        final var jwt = (SignedJWT) JWTParser.parse(response.getBody());
+        final var claims = jwt.getJWTClaimsSet();
+        assertEquals("openid_federation:" + entityId, claims.getStringClaim("client_id"));
+        assertEquals(entityId, claims.getIssuer());
+        assertFalse(claims.getJWTID().isBlank());
+        assertEquals(REQUEST_EXPIRY, claims.getExpirationTime().toInstant());
+        assertEquals("federation-key", jwt.getHeader().getKeyID());
     }
 
     @Test
@@ -314,6 +348,7 @@ class Oid4vpWalletControllerTest {
                                         : new uniffi.kapun_dcql_rust.DcqlQuery(List.of(), null))
                                 .withScope(scope)
                                 .build());
+        when(requestService.findExpiry(REQUEST_ID)).thenReturn(REQUEST_EXPIRY);
         when(requestService.findVerificationRequestData(REQUEST_ID))
                 .thenReturn(
                         new VerificationRequestData(
