@@ -23,6 +23,7 @@ export type AssignmentRow = {
   type: IdentityKeySlotType;
   trustSystem: TrustSystem;
   slot?: IdentityKeySlot;
+  newOperation?: boolean;
 };
 
 function assignedCertificate(slot: IdentityKeySlot, keys: PlatformKey[]) {
@@ -127,6 +128,49 @@ export function rowsFor(
   }
 
   return rows;
+}
+
+export function configurationRows(
+  types: readonly IdentityKeySlotType[],
+  rows: AssignmentRow[],
+  addTrustSystems: readonly ConfiguredTrustSystem[] | undefined,
+  fixedTrustSystem: TrustSystem | undefined,
+): AssignmentRow[] {
+  return types.flatMap<AssignmentRow>((type) => {
+    const assigned = rows.filter((row) => row.type === type);
+
+    if (type === "DECRYPTION") {
+      return [{
+        id: `${type}-configure`,
+        type,
+        trustSystem: fixedTrustSystem ?? "Default",
+      }];
+    }
+
+    if (type === "OPERATION" && assigned.length > 0) {
+      const trustSystem = fixedTrustSystem ?? "Default";
+      return [{
+        id: `${type}-${trustSystem}-add`,
+        type,
+        trustSystem,
+        newOperation: true,
+      }];
+    }
+
+    if (assigned.length > 0) return [];
+
+    const contexts: TrustSystem[] = fixedTrustSystem
+      ? [fixedTrustSystem]
+      : type === "IDENTITY_STATEMENT" && addTrustSystems?.length
+        ? [...addTrustSystems]
+        : ["Default"];
+
+    return contexts.map((trustSystem) => ({
+      id: `${type}-${trustSystem}-configure`,
+      type,
+      trustSystem,
+    }));
+  });
 }
 
 export function requiredMaterial(

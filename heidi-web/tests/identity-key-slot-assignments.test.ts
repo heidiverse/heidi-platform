@@ -8,6 +8,7 @@ import {
   expectedProfile,
   hasDevelopmentCertificate,
   assignedKeyIds,
+  configurationRows,
   requiredMaterial,
   rowsFor,
   showTrustContext,
@@ -82,6 +83,25 @@ test("advanced capabilities remain identifiable as separate assignments", () => 
   deepEqual(
     rows.map(({ type }) => type),
     ["OPERATION", "FEDERATION", "DECRYPTION", "STATUS_LIST"],
+  );
+});
+
+test("specialised operations can add another operation assignment", () => {
+  const rows = rowsFor(
+    [{
+      ...slot("presentation-setup", "OPERATION"),
+      operation: "w3c.bbs-data-integrity-presentation-setup",
+    }],
+    ["OPERATION"],
+  );
+
+  deepEqual(
+    configurationRows(["OPERATION"], rows, undefined, undefined).map((row) => ({
+      type: row.type,
+      trustSystem: row.trustSystem,
+      newOperation: row.newOperation,
+    })),
+    [{ type: "OPERATION", trustSystem: "Default", newOperation: true }],
   );
 });
 

@@ -52,6 +52,7 @@ import {
   advancedTypes,
   assignedKeyIds,
   certificateSourceNote,
+  configurationRows,
   expectedProfile,
   hasDevelopmentCertificate,
   requiredMaterial,
@@ -277,7 +278,7 @@ function SlotAssignmentDialog({
   const [trustSystem, setTrustSystem] = useState<TrustSystem>(row.trustSystem);
   const [keyId, setKeyId] = useState(row.slot?.keyId ?? "");
   const [operation, setOperation] = useState(
-    row.slot?.operation ?? defaultOperation,
+    row.slot?.operation ?? (row.newOperation ? "" : defaultOperation),
   );
   const [consumer, setConsumer] = useState<IdentityKeySlotConsumer>(
     row.slot?.consumer ?? "VERIFIER",
@@ -793,7 +794,10 @@ function ConfigureAssignmentButton({
         disabled={!editable}
         onClick={() => setOpen(true)}
       >
-        <IconPlus /> Configure {slotLabels[row.type]}
+        <IconPlus />
+        {row.newOperation
+          ? "Add specialised operation"
+          : `Configure ${slotLabels[row.type]}`}
       </Button>
       <SlotAssignmentDialog
         open={open}
@@ -809,39 +813,6 @@ function ConfigureAssignmentButton({
       />
     </>
   );
-}
-
-function configurationRows(
-  types: readonly IdentityKeySlotType[],
-  rows: AssignmentRow[],
-  addTrustSystems: readonly ConfiguredTrustSystem[] | undefined,
-  fixedTrustSystem: TrustSystem | undefined,
-): AssignmentRow[] {
-  return types.flatMap((type) => {
-    const assigned = rows.filter((row) => row.type === type);
-
-    if (type === "DECRYPTION") {
-      return [{
-        id: `${type}-configure`,
-        type,
-        trustSystem: fixedTrustSystem ?? "Default",
-      } as AssignmentRow];
-    }
-
-    if (assigned.length > 0) return [];
-
-    const contexts: TrustSystem[] = fixedTrustSystem
-      ? [fixedTrustSystem]
-      : type === "IDENTITY_STATEMENT" && addTrustSystems?.length
-        ? [...addTrustSystems]
-        : ["Default"];
-
-    return contexts.map((trustSystem) => ({
-      id: `${type}-${trustSystem}-configure`,
-      type,
-      trustSystem,
-    }));
-  });
 }
 
 function IdentitySlotsRow({
