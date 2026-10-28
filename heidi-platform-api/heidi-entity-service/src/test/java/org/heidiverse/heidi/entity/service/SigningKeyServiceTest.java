@@ -344,7 +344,7 @@ class SigningKeyServiceTest {
         certificate.setNotBefore(Instant.now().minusSeconds(60));
         certificate.setNotAfter(Instant.now().plusSeconds(3600));
         when(slotRepository.findAllByKeyId(first.keyId())).thenReturn(List.of(slot));
-        when(certificateRepository.forProfile(prepared.keyVersionId(), certificate.getProfile(), certificate.getTrustSystem()))
+        when(certificateRepository.forVersion(prepared.keyVersionId()))
                 .thenReturn(List.of(certificate));
         when(certificateRepository.findById(certificate.getId())).thenReturn(Optional.of(certificate));
 
@@ -383,14 +383,15 @@ class SigningKeyServiceTest {
         var certificates = java.util.stream.IntStream.range(0, 2).mapToObj(index -> {
             var certificate = new org.heidiverse.heidi.entity.model.entity.SigningCertificateEntity();
             certificate.setId(UUID.randomUUID());
+            certificate.setProfile(slot.getType().certificateProfile(slot.getTrustSystem()));
+            certificate.setTrustSystem(slot.getTrustSystem());
             certificate.setCertificateChain(List.of("leaf", "root"));
             certificate.setNotBefore(Instant.now().minusSeconds(60));
             certificate.setNotAfter(Instant.now().plusSeconds(3600));
             return certificate;
         }).toList();
         when(slotRepository.findAllByKeyId(first.keyId())).thenReturn(List.of(slot));
-        when(certificateRepository.forProfile(prepared.keyVersionId(),
-                slot.getType().certificateProfile(slot.getTrustSystem()), slot.getTrustSystem()))
+        when(certificateRepository.forVersion(prepared.keyVersionId()))
                 .thenReturn(certificates);
         when(certificateRepository.findById(certificates.getLast().getId()))
                 .thenReturn(Optional.of(certificates.getLast()));

@@ -8,6 +8,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import { FormattedMessage, useIntl } from "react-intl";
 import { EcosystemProfileLabel } from "@/components/common/ecosystem-profile-label";
+import { SigningKeyChain } from "@/components/pki/signing-key-chain";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -428,6 +429,7 @@ export const IssuingSettingsTab = withForm({
                     name={`issuingSettings.signingKeyIds.${trustSystem}`}
                   >
                     {(field) => (
+                      <div className="space-y-3">
                       <Field orientation="horizontal">
                         <FieldLabel htmlFor={field.name}>
                           {trustSystem} credential key
@@ -461,6 +463,8 @@ export const IssuingSettingsTab = withForm({
                           </Select>
                         )}
                       </Field>
+                      <SigningKeyChain keys={platformKeys} slots={identitySlots} logicalKeyId={field.state.value} trustSystem={trustSystem} type="CREDENTIAL_SIGNING" />
+                      </div>
                     )}
                   </form.AppField>
                 );

@@ -8,19 +8,11 @@ import org.heidiverse.heidi.entity.service.IssuerService;
 import org.heidiverse.heidi.entity.service.LocalDevelopmentTrustSeed;
 import org.heidiverse.heidi.entity.service.TenantService;
 
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.BasicConstraints;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyUsage;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.heidiverse.heidi.signing.adapters.ManagedCertificates;
+import uniffi.heidi_pki_x509.CertificateRole;
+import uniffi.heidi_pki_x509.CertificateSpec;
+import uniffi.heidi_pki_x509.SignatureAlgorithm;
+import uniffi.heidi_pki_x509.SignatureEncoding;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,19 +33,18 @@ import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
-import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.cert.CertificateFactory;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Date;
-import java.util.HexFormat;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Mints a throw-away certificate authority on the developer's machine and seeds the local issuer
@@ -84,9 +75,9 @@ public class PlatformApiLocalDevelopmentCaConfig {
     private static final String ALIAS = "dev-ca";
     private static final String SIGNATURE_ALGORITHM = "SHA256withECDSA";
 
-    static {
-        Security.addProvider(new BouncyCastleProvider());
-    }
+    private static final int SERIAL_BITS = 64;
+    private static final int CA_USAGE = (1 << 5) | (1 << 6);
+    private static final int LEAF_USAGE = 1;
 
     /**
      * The CA as a bean rather than a start-up local, so {@link IssuerService} can certify keys
@@ -202,7 +193,7 @@ public class PlatformApiLocalDevelopmentCaConfig {
         if (certificate == null || privateKey == null) {
             throw new IllegalStateException("The keystore holds no key pair under alias " + ALIAS);
         }
-        certificate.checkValidity();
+        ManagedCertificates.valid(Base64.getEncoder().encodeToString(certificate.getEncoded()));
         return new DevelopmentCa(privateKey, certificate, issuerIdentifier);
     }
 
@@ -211,9 +202,10 @@ public class PlatformApiLocalDevelopmentCaConfig {
         if (!Files.isRegularFile(keystorePath)) return null;
         try (InputStream input = Files.newInputStream(keystorePath)) {
             var existing = read(input, password, issuerIdentifier);
-            var subject = new JcaX509CertificateHolder(existing.certificate()).getSubject();
-            if (!new X500Name(DEVELOPMENT_CA_SUBJECT).equals(subject)) {
-                throw new IllegalStateException("certificate subject is " + subject);
+            var subject = ManagedCertificates.info(existing.rootCertificate()).getSubject();
+            if (!ManagedCertificates.use(x509 -> x509.namesEqual(subject.getDer(),
+                    ManagedCertificates.subject(DEVELOPMENT_CA_SUBJECT)))) {
+                throw new IllegalStateException("certificate subject is " + subject.getDisplay());
             }
             return existing;
         } catch (Exception exception) {
@@ -233,26 +225,14 @@ public class PlatformApiLocalDevelopmentCaConfig {
 
         final var notBefore = Instant.now().minus(Duration.ofHours(1));
         final var notAfter = notBefore.plus(validity);
-        final var name = new X500Name(DEVELOPMENT_CA_SUBJECT);
-        final var builder =
-                new JcaX509v3CertificateBuilder(
-                        name,
-                        new BigInteger(64, new SecureRandom()),
-                        Date.from(notBefore),
-                        Date.from(notAfter),
-                        name,
-                        keyPair.getPublic());
-        builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
-        builder.addExtension(
-                Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
-
-        final var certificate =
-                new JcaX509CertificateConverter()
-                        .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                        .getCertificate(
-                                builder.build(
-                                        new JcaContentSignerBuilder(SIGNATURE_ALGORITHM)
-                                                .build(keyPair.getPrivate())));
+        var spec = new CertificateSpec(ManagedCertificates.subject(DEVELOPMENT_CA_SUBJECT), null,
+                keyPair.getPublic().getEncoded(), serial(), notBefore.getEpochSecond(), notAfter.getEpochSecond(),
+                SignatureAlgorithm.ES256, CertificateRole.AUTHORITY, null, CA_USAGE,
+                List.of(), List.of(), null, List.of(), List.of());
+        var der = sign(spec, keyPair.getPrivate(), keyPair.getPublic().getEncoded());
+        // The existing PKCS#12 container requires a Java certificate object.
+        var certificate = (X509Certificate) CertificateFactory.getInstance("X.509")
+                .generateCertificate(new ByteArrayInputStream(der));
         return new DevelopmentCa(keyPair.getPrivate(), certificate, issuerIdentifier);
     }
 
@@ -275,8 +255,22 @@ public class PlatformApiLocalDevelopmentCaConfig {
     }
 
     private static String fingerprint(final X509Certificate certificate) throws Exception {
-        return HexFormat.ofDelimiter(":")
-                .formatHex(MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded()));
+        return ManagedCertificates.info(Base64.getEncoder().encodeToString(certificate.getEncoded()))
+                .getFingerprint().replaceAll("(..)(?!$)", "$1:");
+    }
+
+    private static byte[] serial() {
+        return new BigInteger(SERIAL_BITS, new SecureRandom()).setBit(SERIAL_BITS - 1).toByteArray();
+    }
+
+    private static byte[] sign(CertificateSpec spec, PrivateKey key, byte[] issuerSpki) {
+        return ManagedCertificates.use(x509 -> {
+            var tbs = x509.prepare(spec);
+            var signer = Signature.getInstance(SIGNATURE_ALGORITHM);
+            signer.initSign(key);
+            signer.update(tbs);
+            return x509.complete(tbs, signer.sign(), SignatureEncoding.CERTIFICATE, issuerSpki);
+        });
     }
 
     /** The generated CA, in the shape {@link IssuerService} consumes it. */
@@ -316,61 +310,34 @@ public class PlatformApiLocalDevelopmentCaConfig {
                 final String subjectName,
                 final String issuer,
                 final byte[] subjectPublicKeyInfo) throws Exception {
-            final var holder = new JcaX509CertificateHolder(certificate);
-            // The leaf never outlives the CA that signed it, so an expired CA fails chain
-            // validation on the anchor rather than leaving a leaf that verifies against nothing.
+            var root = ManagedCertificates.info(rootCertificate());
             final var notBefore = Instant.now().minus(Duration.ofHours(1));
-            final var notAfter =
-                    certificate.getNotAfter().toInstant().isBefore(notBefore.plus(Duration.ofDays(90)))
-                            ? certificate.getNotAfter().toInstant()
-                            : notBefore.plus(Duration.ofDays(90));
-
-            final var builder =
-                    new X509v3CertificateBuilder(
-                            holder.getSubject(),
-                            new BigInteger(64, new SecureRandom()),
-                            Date.from(notBefore),
-                            Date.from(notAfter),
-                            new X500Name("CN=" + subjectName + ", O=" + subjectName + ", C=CH"),
-                            SubjectPublicKeyInfo.getInstance(subjectPublicKeyInfo));
-            builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
-            builder.addExtension(
-                    Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature));
-            builder.addExtension(
-                    Extension.subjectAlternativeName, false, subjectAlternativeNames(issuer));
-
-            final var leaf =
-                    new JcaX509CertificateConverter()
-                            .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                            .getCertificate(
-                                    builder.build(
-                                            new JcaContentSignerBuilder(SIGNATURE_ALGORITHM)
-                                                    .build(privateKey)));
-            return List.of(
-                    Base64.getEncoder().encodeToString(leaf.getEncoded()),
-                    Base64.getEncoder().encodeToString(certificate.getEncoded()));
+            final var rootExpiry = Instant.ofEpochSecond(root.getNotAfter());
+            final var notAfter = rootExpiry.isBefore(notBefore.plus(Duration.ofDays(90)))
+                    ? rootExpiry : notBefore.plus(Duration.ofDays(90));
+            var names = subjectAlternativeNames(issuer);
+            var subject = ManagedCertificates.subject("CN=" + subjectName + ",O=" + subjectName + ",C=CH");
+            var spec = new CertificateSpec(subject, root.getDer(), subjectPublicKeyInfo, serial(),
+                    notBefore.getEpochSecond(), notAfter.getEpochSecond(), SignatureAlgorithm.ES256,
+                    CertificateRole.LEAF, null, LEAF_USAGE, names.dns(), names.uris(), null, List.of(), List.of());
+            var leaf = sign(spec, privateKey, root.getSpkiDer());
+            return List.of(Base64.getEncoder().encodeToString(leaf), rootCertificate());
         }
 
         /** URL issuer identifiers bind to their DNS host; other identifiers bind as URIs. */
-        private GeneralNames subjectAlternativeNames(final String issuer) {
-            final var issuerName = issuerSan(issuer);
-            final var verifierHost =
-                    verifierIdentifier == null || verifierIdentifier.isBlank()
-                            ? null
-                            : URI.create(verifierIdentifier).getHost();
-            final var verifierIsSeparate =
-                    verifierHost != null && !verifierHost.equals(issuerName.getName().toString());
-            if (!verifierIsSeparate) return new GeneralNames(issuerName);
+        private AlternativeNames subjectAlternativeNames(final String issuer) {
+            var dns = new ArrayList<String>();
+            var uris = new ArrayList<String>();
+            var issuerHost = URI.create(issuer).getHost();
+            if (issuerHost == null) uris.add(issuer);
+            else dns.add(issuerHost);
 
-            return new GeneralNames(
-                    new GeneralName[] {issuerName, new GeneralName(GeneralName.dNSName, verifierHost)});
+            var verifierHost = verifierIdentifier == null || verifierIdentifier.isBlank()
+                    ? null : URI.create(verifierIdentifier).getHost();
+            if (verifierHost != null && !verifierHost.equals(issuerHost)) dns.add(verifierHost);
+            return new AlternativeNames(dns, uris);
         }
 
-        private static GeneralName issuerSan(final String issuer) {
-            final var host = URI.create(issuer).getHost();
-            return host == null
-                    ? new GeneralName(GeneralName.uniformResourceIdentifier, issuer)
-                    : new GeneralName(GeneralName.dNSName, host);
-        }
+        private record AlternativeNames(List<String> dns, List<String> uris) {}
     }
 }

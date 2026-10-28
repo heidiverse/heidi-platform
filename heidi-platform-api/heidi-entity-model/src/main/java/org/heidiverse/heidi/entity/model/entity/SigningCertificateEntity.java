@@ -64,6 +64,12 @@ public class SigningCertificateEntity {
     @Column(name = "retired_at")
     private Instant retiredAt;
 
+    @Column(name = "issuing_ca_id")
+    private UUID issuingCaId;
+
+    public UUID getIssuingCaId() { return issuingCaId; }
+    public void setIssuingCaId(UUID value) { issuingCaId = value; }
+
     public UUID getId() { return id; }
     public void setId(UUID value) { id = value; }
     public UUID getKeyVersionId() { return keyVersionId; }

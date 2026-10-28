@@ -208,6 +208,8 @@ public class IdentityKeySlotService {
     private List<String> certificateChain(
             IdentityKeySlotEntity slot, SigningKeyVersionEntity version,
             SigningCertificateProfile profile, IssuerTrustSystem trustSystem) {
+        // Swiss profiles use DID trust and never emit certificates.
+        if (trustSystem == IssuerTrustSystem.Switzerland) return List.of();
         var certificate = selectCertificate(slot.getCertificateId(), version.getId(), profile, trustSystem);
         if (certificate == null && slot.getType().requiresCertificate(trustSystem)) {
             throw new IllegalArgumentException("EUDI slot requires a valid " + profile + " certificate");
@@ -224,12 +226,7 @@ public class IdentityKeySlotService {
 
     private static boolean selfSigned(String encoded) {
         try {
-            var factory = java.security.cert.CertificateFactory.getInstance("X.509");
-            var cert = (java.security.cert.X509Certificate) factory.generateCertificate(
-                    new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(encoded)));
-            if (!cert.getSubjectX500Principal().equals(cert.getIssuerX500Principal())) return false;
-            cert.verify(cert.getPublicKey());
-            return true;
+            return org.heidiverse.heidi.signing.adapters.ManagedCertificates.selfSigned(encoded);
         } catch (Exception ignored) {
             return false;
         }
@@ -237,6 +234,10 @@ public class IdentityKeySlotService {
 
     private org.heidiverse.heidi.entity.model.entity.SigningCertificateEntity selectCertificate(
             UUID selectedId, UUID versionId, SigningCertificateProfile profile, IssuerTrustSystem trust) {
+        if (trust == IssuerTrustSystem.Switzerland) {
+            if (selectedId != null) throw new IllegalArgumentException("Swiss profiles do not use certificates");
+            return null;
+        }
         if (selectedId != null) {
             var selected = certificateRepository.findById(selectedId)
                     .orElseThrow(() -> new IllegalArgumentException("Slot certificate not found"));
@@ -244,8 +245,9 @@ public class IdentityKeySlotService {
             return selected;
         }
         var now = Instant.now();
-        var eligible = certificateRepository.forProfile(versionId, profile,
-                SigningCertificateRules.framework(trust)).stream()
+        var eligible = certificateRepository.forVersion(versionId).stream()
+                .filter(record -> record.getProfile() == profile)
+                .filter(record -> SigningCertificateRules.compatible(record.getTrustSystem(), trust))
                 .filter(record -> SigningCertificateRules.validAt(record, now)).toList();
         if (eligible.size() > 1) throw new IllegalArgumentException("Select a certificate for this identity slot");
         return eligible.isEmpty() ? null : eligible.getFirst();

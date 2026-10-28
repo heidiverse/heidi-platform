@@ -40,5 +40,19 @@ public record PlatformKeyResponse(
     public record Certificate(
             UUID id, SigningCertificateProfile profile, SigningCertificateSource source,
             IssuerTrustSystem trustSystem, List<String> chain, Instant notBefore, Instant notAfter,
-            Instant firstUsedAt, Instant retiredAt, String eudiLeafProfile) {}
+            Instant firstUsedAt, Instant retiredAt, String eudiLeafProfile, UUID issuingCaId, Anchor anchor, List<ChainEntry> chainDetails) {
+        public Certificate(UUID id, SigningCertificateProfile profile, SigningCertificateSource source,
+                IssuerTrustSystem trustSystem, List<String> chain, Instant notBefore, Instant notAfter,
+                Instant firstUsedAt, Instant retiredAt, String eudiLeafProfile) {
+            this(id, profile, source, trustSystem, chain, notBefore, notAfter,
+                    firstUsedAt, retiredAt, eudiLeafProfile, null, null, List.of());
+        }
+    }
+
+    public record ChainEntry(String subjectDn, String issuerDn, String fingerprint,
+            Long pathLength, Instant notAfter) {}
+
+    public enum AnchorOrigin { PLATFORM, EXTERNAL, UNKNOWN }
+
+    public record Anchor(AnchorOrigin origin, String subjectDn, String fingerprint, UUID caId) {}
 }

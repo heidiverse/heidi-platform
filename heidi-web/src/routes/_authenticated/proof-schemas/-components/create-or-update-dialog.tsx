@@ -11,6 +11,7 @@ import {
   CredentialSchemaCombobox,
 } from "@/components/common/credential-schema-combobox";
 import { EcosystemProfileLabel } from "@/components/common/ecosystem-profile-label";
+import { SigningKeyChain } from "@/components/pki/signing-key-chain";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -440,6 +441,7 @@ export function CreateOrUpdateDialog({
                     </SelectContent>
                   </Select>
                 </div>
+                <SigningKeyChain keys={platformKeys} slots={identitySlots} logicalKeyId={verifierSigningKeyId === "primary" ? undefined : verifierSigningKeyId} trustSystem={trustSystemForPresentationProfile(presentationProfileId)} type="PRESENTATION_SIGNING" />
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label>Proof setup provider</Label>
                   <Select

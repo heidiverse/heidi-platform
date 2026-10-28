@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +42,6 @@ import org.heidiverse.heidi.entity.data.repository.IssuingSubcaRepository;
 import org.heidiverse.heidi.entity.model.entity.IssuingSubcaEntity;
 import org.heidiverse.heidi.entity.model.entity.SigningKeyEntity;
 import org.heidiverse.heidi.entity.model.entity.SigningKeyVersionEntity;
-import org.heidiverse.heidi.entity.model.issuer.IssuerTrustSystem;
 import org.heidiverse.heidi.entity.model.issuer.SigningCertificateProfile;
 import org.heidiverse.heidi.entity.model.issuer.SigningCertificateSource;
 import org.heidiverse.heidi.shared.signing.ProviderHealth;
@@ -94,7 +95,7 @@ class IssuingPkiServiceTest {
 
     @Test
     void selfSignedCaIssuesPidAndEaaLeaves() throws Exception {
-        service.selfSign(TENANT, ca.getId());
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0);
         var issuer = certificate(ca.getCertificateChain().getFirst());
         issuer.verify(issuer.getPublicKey());
         assertEquals(0, issuer.getBasicConstraints());
@@ -103,7 +104,7 @@ class IssuingPkiServiceTest {
         var issued = new ArrayList<List<String>>();
         when(keys.setCertificateChain(eq(TENANT), eq(leafVersion.getKeyId()),
                 eq(leafVersion.getId()), any(), eq(SigningCertificateProfile.CREDENTIAL_SIGNING),
-                eq(SigningCertificateSource.CA_ISSUED), eq(IssuerTrustSystem.EUDI), any()))
+                eq(SigningCertificateSource.CA_ISSUED), isNull(), any(), eq(ca.getId())))
                 .thenAnswer(call -> {
                     issued.add(call.getArgument(3));
                     return UUID.randomUUID();
@@ -139,12 +140,12 @@ class IssuingPkiServiceTest {
     @Test
     void rejectsCaWithoutIssuerCountry() {
         ca.setSubjectDn("CN=Test Issuing CA,O=Example");
-        assertThrows(IllegalArgumentException.class, () -> service.selfSign(TENANT, ca.getId()));
+        assertThrows(IllegalArgumentException.class, () -> service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0));
     }
 
     @Test
     void rejectsIncompleteLegalPersonSubject() {
-        service.selfSign(TENANT, ca.getId());
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0);
         assertThrows(IllegalArgumentException.class, () -> service.issueLeaf(TENANT,
                 ca.getId(), leafVersion.getKeyId(), leafVersion.getId(),
                 "CN=Test Issuer,O=Example AG", IssuingPkiService.LeafProfile.PID));
@@ -152,7 +153,7 @@ class IssuingPkiServiceTest {
 
     @Test
     void importsOfflineRootChainForTheSameSubcaKey() throws Exception {
-        service.selfSign(TENANT, ca.getId());
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0);
         var original = ca.getCertificateChain().getFirst();
         var rootPair = pair();
         var rootName = new X500Name("CN=Offline Root,O=Example");
@@ -171,7 +172,7 @@ class IssuingPkiServiceTest {
 
     @Test
     void trustAnchorsAreRootsOfCertifiedSubcas() throws Exception {
-        service.selfSign(TENANT, ca.getId());
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0);
 
         // Offline-root SubCA: the root, not the SubCA, anchors its chain.
         var rootPair = pair();
@@ -190,6 +191,48 @@ class IssuingPkiServiceTest {
 
         assertEquals(List.of(ca.getCertificateChain().getFirst(), encode(root)),
                 service.trustAnchors(TENANT));
+    }
+
+    @Test
+    void rootPathLengthIsExplicit() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.selfSign(TENANT, ca.getId(), null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.UNLIMITED, 2));
+        verifyNoInteractions(providers);
+
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 2);
+        assertEquals(2, certificate(ca.getCertificateChain().getFirst()).getBasicConstraints());
+        var detail = CertificateAnchors.details(ca.getCertificateChain()).getFirst();
+        assertEquals(2L, detail.pathLength());
+        assertTrue(detail.notAfter().isAfter(Instant.now()));
+    }
+
+    @Test
+    void rootCanExplicitlyBeUnlimited() throws Exception {
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.UNLIMITED, null);
+        assertEquals(Integer.MAX_VALUE, certificate(ca.getCertificateChain().getFirst()).getBasicConstraints());
+    }
+
+    @Test
+    void exhaustedRootRejectsChild() {
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 0);
+        assertThrows(IllegalArgumentException.class, () -> service.create(TENANT,
+                "CN=Intermediate,O=Example,C=CH", "RS256", null, ca.getId()));
+    }
+
+    @Test
+    void onlyTerminalCaIssuesLeaves() {
+        service.selfSign(TENANT, ca.getId(), IssuingPkiService.PathLengthMode.LIMITED, 2);
+        when(repository.existsByParentCaId(ca.getId())).thenReturn(true);
+        var error = assertThrows(IllegalArgumentException.class, () -> service.issueLeaf(TENANT,
+                ca.getId(), leafVersion.getKeyId(), leafVersion.getId(),
+                "CN=Signing certificate", IssuingPkiService.LeafProfile.GENERIC));
+        assertTrue(error.getMessage().contains("end of a branch"));
     }
 
     private static IssuingSubcaEntity subca(List<String> chain) {

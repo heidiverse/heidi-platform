@@ -40,7 +40,10 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.cert.CertificateFactory;
+import org.heidiverse.heidi.signing.adapters.ManagedCertificates;
+import uniffi.heidi_pki_x509.ChainKind;
+import uniffi.heidi_pki_x509.ChainEnd;
+import uniffi.heidi_pki_x509.IssuerUsage;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.EdECPrivateKey;
@@ -168,9 +171,7 @@ public class IssuerService {
         try {
             byte[] publicKeyBytes;
             if (certificateChain != null && !certificateChain.isEmpty()) {
-                var certificate = CertificateFactory.getInstance("X.509").generateCertificate(
-                        new ByteArrayInputStream(Base64.getDecoder().decode(certificateChain.getFirst())));
-                publicKeyBytes = certificate.getPublicKey().getEncoded();
+                publicKeyBytes = ManagedCertificates.info(certificateChain.getFirst()).getSpkiDer();
             } else {
                 var jwk = com.nimbusds.jose.jwk.JWK.parse(publicJwk).toPublicJWK();
                 PublicKey publicKey = switch (jwk.getKeyType().getValue()) {
@@ -182,9 +183,7 @@ public class IssuerService {
                 };
                 publicKeyBytes = publicKey.getEncoded();
             }
-            var encoded = Base64.getMimeEncoder(64, "\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII))
-                    .encodeToString(publicKeyBytes);
-            return "-----BEGIN PUBLIC KEY-----\n" + encoded + "\n-----END PUBLIC KEY-----\n";
+            return ManagedCertificates.use(x509 -> x509.publicKeyPem(publicKeyBytes));
         } catch (IllegalArgumentException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -347,26 +346,7 @@ public class IssuerService {
         if (chain.isEmpty()) {
             throw new IllegalArgumentException("Certificate chain must contain a leaf certificate");
         }
-        try {
-            var factory = CertificateFactory.getInstance("X.509");
-            var certificates = chain.stream().map(encoded -> {
-                try {
-                    return (java.security.cert.X509Certificate) factory.generateCertificate(
-                            new ByteArrayInputStream(Base64.getDecoder().decode(encoded)));
-                } catch (Exception exception) {
-                    throw new IllegalArgumentException("Invalid X.509 certificate in trust chain", exception);
-                }
-            }).toList();
-            for (var certificate : certificates) certificate.checkValidity();
-            for (int index = 0; index < certificates.size() - 1; index++) {
-                certificates.get(index).verify(certificates.get(index + 1).getPublicKey());
-            }
-        } catch (IllegalArgumentException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new IllegalArgumentException(
-                    "Certificates do not form a valid leaf-to-root trust chain", exception);
-        }
+        ManagedCertificates.validate(chain, ChainKind.SIGNING, ChainEnd.PARTIAL, IssuerUsage.UNCHECKED, null);
     }
 
     public IssuerTrustConfigurationResponse getIssuerTrustConfiguration(
@@ -658,17 +638,8 @@ public class IssuerService {
             throw new IllegalArgumentException("EUDI verification trust anchors must not be empty");
         }
         try {
-            var normalized = encoded
-                    .replace("-----BEGIN CERTIFICATE-----", "")
-                    .replace("-----END CERTIFICATE-----", "")
-                    .replaceAll("\\s", "");
-            var certificate = (java.security.cert.X509Certificate)
-                    CertificateFactory.getInstance("X.509").generateCertificate(
-                            new ByteArrayInputStream(Base64.getDecoder().decode(normalized)));
-            certificate.checkValidity();
-            if (certificate.getBasicConstraints() < 0) {
-                throw new IllegalArgumentException("EUDI verification trust anchor must be a CA certificate");
-            }
+            ManagedCertificates.use(x509 -> x509.validateAuthority(ManagedCertificates.decode(encoded),
+                    Instant.now().getEpochSecond(), IssuerUsage.UNCHECKED));
         } catch (IllegalArgumentException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -680,15 +651,10 @@ public class IssuerService {
             List<String> chain, String algorithm, String keyId, String expectedJwk) {
         if (chain == null || chain.isEmpty()) throw new IllegalArgumentException("Certificate chain is required");
         try {
-            var encoded = chain.getFirst()
-                    .replace("-----BEGIN CERTIFICATE-----", "")
-                    .replace("-----END CERTIFICATE-----", "")
-                    .replaceAll("\\s", "");
-            var certificate = CertificateFactory.getInstance("X.509").generateCertificate(
-                    new ByteArrayInputStream(Base64.getDecoder().decode(encoded)));
+            var certificate = ManagedCertificates.info(chain.getFirst());
             var certificateJwk = OBJECT_MAPPER.readTree(
                     uniffi.heidi_signing.Heidi_signing_jvmKt.publicJwkFromDer(
-                            certificate.getPublicKey().getEncoded(), algorithm, keyId));
+                            certificate.getSpkiDer(), algorithm, keyId));
             var configuredJwk = OBJECT_MAPPER.readTree(expectedJwk);
             for (var field : List.of("kty", "crv", "x", "y", "n", "e")) {
                 if (configuredJwk.has(field)
@@ -1714,6 +1680,7 @@ public class IssuerService {
             issuer.setEudiVerificationTrustAnchors(List.of(rootCertificate));
         }
         for (var slot : identityKeySlotService.slots(issuer.getId())) {
+            if (slot.getTrustSystem() == IssuerTrustSystem.Switzerland) continue;
             if (slot.getType() != IdentityKeySlotType.CREDENTIAL_SIGNING
                     && slot.getType() != IdentityKeySlotType.IDENTITY_STATEMENT
                     && slot.getType() != IdentityKeySlotType.PRESENTATION_SIGNING) continue;
@@ -1731,7 +1698,7 @@ public class IssuerService {
                     .filter(certificate -> certificate.getId().equals(slot.getCertificateId()))
                     .filter(certificate -> certificate.getKeyVersionId().equals(version.getId()))
                     .filter(certificate -> certificate.getProfile() == profile
-                            && Objects.equals(SigningCertificateRules.framework(certificate.getTrustSystem()), trust))
+                            && SigningCertificateRules.compatible(certificate.getTrustSystem(), trust))
                     .anyMatch(certificate -> SigningCertificateRules.validAt(certificate, Instant.now()));
             if (selected) continue;
 
@@ -1775,6 +1742,8 @@ public class IssuerService {
             if (trustSystem == null) {
                 throw new IllegalArgumentException("Local trust system must not be null");
             }
+            // Swiss trust requires an operator-published DID; certificate bootstrap does not apply.
+            if (trustSystem == IssuerTrustSystem.Switzerland) continue;
             var slots = identityKeySlotService.slots(issuer.getId());
             var missing = roles.stream()
                     .filter(type -> slots.stream().noneMatch(slot ->
@@ -1875,16 +1844,10 @@ public class IssuerService {
         if (record.getSource() != SigningCertificateSource.DEVELOPMENT
                 || chain.isEmpty() || !root.equals(chain.getLast())) return false;
         try {
-            var leaf = (java.security.cert.X509Certificate) CertificateFactory.getInstance("X.509")
-                    .generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(chain.getFirst())));
-            leaf.checkValidity();
+            var leaf = ManagedCertificates.info(chain.getFirst());
+            ManagedCertificates.valid(chain.getFirst());
             var host = java.net.URI.create(issuer).getHost();
-            var type = host == null ? org.bouncycastle.asn1.x509.GeneralName.uniformResourceIdentifier
-                    : org.bouncycastle.asn1.x509.GeneralName.dNSName;
-            var name = host == null ? issuer : host;
-            var names = leaf.getSubjectAlternativeNames();
-            return names != null && names.stream().anyMatch(san ->
-                    Integer.valueOf(type).equals(san.getFirst()) && name.equals(san.get(1)));
+            return host == null ? leaf.getUriNames().contains(issuer) : leaf.getDnsNames().contains(host);
         } catch (Exception exception) {
             return false;
         }

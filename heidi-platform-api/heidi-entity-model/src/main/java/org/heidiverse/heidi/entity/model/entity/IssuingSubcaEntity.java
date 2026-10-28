@@ -39,6 +39,36 @@ public class IssuingSubcaEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public Instant getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(Instant value) { deletedAt = value; }
+
+    @Column(name = "parent_ca_id")
+    private UUID parentCaId;
+
+    public UUID getParentCaId() { return parentCaId; }
+    public void setParentCaId(UUID value) { parentCaId = value; }
+
+    @jakarta.persistence.Transient
+    private org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.Anchor anchor;
+    @jakarta.persistence.Transient
+    private List<org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.ChainEntry> chainDetails = List.of();
+
+    public org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.Anchor getAnchor() { return anchor; }
+    public void setAnchor(org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.Anchor value) { anchor = value; }
+    public List<org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.ChainEntry> getChainDetails() { return chainDetails; }
+    public void setChainDetails(List<org.heidiverse.heidi.entity.model.issuer.PlatformKeyResponse.ChainEntry> value) { chainDetails = List.copyOf(value); }
+
+    @Column(name = "generated_root_certificate")
+    private String generatedRootCertificate;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getGeneratedRootCertificate() { return generatedRootCertificate; }
+    public void setGeneratedRootCertificate(String value) { generatedRootCertificate = value; }
+
     public UUID getId() { return id; }
     public void setId(UUID value) { id = value; }
     public String getTenantId() { return tenantId; }

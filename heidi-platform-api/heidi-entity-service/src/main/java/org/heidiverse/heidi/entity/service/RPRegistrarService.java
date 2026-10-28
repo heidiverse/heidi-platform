@@ -25,13 +25,8 @@ import org.kapunsdk.DcqlQuerySerializer;
 import org.kapunsdk.presentation.request.model.OID4VPVersion;
 import uniffi.kapun_dcql_rust.DcqlQuery;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.util.*;
 
 @Service
@@ -88,22 +83,18 @@ public class RPRegistrarService {
         return response.id();
     }
 
-    public X509Certificate addNewAccessCertificate(UUID rpId, PublicKey publicKey)
+    public byte[] addNewAccessCertificate(UUID rpId, PublicKey publicKey)
             throws CertificateException {
 
         AccessCertificateRegistrationRequest accessCertInfos =
                 new AccessCertificateRegistrationRequest(publicKeyToPem(publicKey), dns);
 
-        // Send (pk, dns) to registrar and then parse the certificate in the response
+        // Parse the registrar response through the shared X.509 boundary.
         log.info("[DE Trust Registry] Adding new access certificate for RP ID: {}", rpId);
         AccessCertificateRegistrationResponse response =
                 rpRegistrarFeignClient.addNewAccessCertificate(rpId, accessCertInfos);
 
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        InputStream certStream =
-                new ByteArrayInputStream(response.crt().getBytes(StandardCharsets.UTF_8));
-
-        return (X509Certificate) certificateFactory.generateCertificate(certStream);
+        return org.heidiverse.heidi.signing.adapters.ManagedCertificates.info(response.crt()).getDer();
     }
 
     public String addNewRegistrationCertificate(ProofSchemeDetail proofScheme)

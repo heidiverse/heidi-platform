@@ -354,7 +354,7 @@ public class TenantService {
         }
         var publicKey = JWK.parse(ref.publicJwk()).toECKey().toPublicKey();
         var certificate = certificateService.generateAccessCertificate(rpId, publicKey);
-        var certificateChain = Base64.getEncoder().encodeToString(certificate.getEncoded());
+        var certificateChain = Base64.getEncoder().encodeToString(certificate);
         tenant.setVerifierKeyUri(ref.uri());
         tenant.setVerifierProviderId(providerId);
         tenant.setVerifierPublicJwk(ref.publicJwk());

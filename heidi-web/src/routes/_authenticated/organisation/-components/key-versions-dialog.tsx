@@ -1,3 +1,5 @@
+import { CertificateChain } from "@/components/pki/certificate-chain";
+import { CertificateDownload } from "@/components/pki/certificate-download";
 // SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -21,10 +23,12 @@ export function KeyVersionsDialog({ tenantId, signingKey, onClose }: { tenantId?
     onError: (error) => toast.error("Could not update key version.", { description: error.message }),
   });
 
-  return <Dialog open onOpenChange={(open) => { if (!open && !update.isPending) onClose(); }}><DialogContent>
+  return <Dialog open onOpenChange={(open) => { if (!open && !update.isPending) onClose(); }}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
     <DialogHeader><DialogTitle>Versions · {signingKey.keyId}</DialogTitle><DialogDescription>Public keys and certificates remain available after retirement or revocation.</DialogDescription></DialogHeader>
     {signingKey.versions.map((version) => <div key={version.id} className="rounded-md border p-3">
-      <p>Version {version.version} · {version.status}</p>
+      <p>Version {version.version} · {version.status} · {version.algorithm}</p>
+      <details className="mt-2"><summary>Public key</summary><pre className="overflow-x-auto whitespace-pre-wrap break-all text-xs">{version.publicJwk}</pre></details>
+      {version.certificates.map((certificate) => <details key={certificate.id} className="mt-2"><summary>{certificate.eudiLeafProfile ?? certificate.profile} · {certificate.id}</summary><div className="my-2 flex items-center justify-between text-sm"><span>Download PEM</span><CertificateDownload certificate={certificate} /></div><CertificateChain chain={certificate.chain} anchor={certificate.anchor} details={certificate.chainDetails} /></details>)}
       {version.status === "PREVIOUS" && version.previousUntil && <p className="text-sm text-muted-foreground">Grace ends {new Date(version.previousUntil).toLocaleString()}. Existing requests retain access until they end.</p>}
       <div className="mt-2 flex gap-2">
         {version.status === "ACTIVE" && <Button variant="outline" disabled={update.isPending} onClick={() => setSelection({ version, action: "retire" })}>Retire</Button>}

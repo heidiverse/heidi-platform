@@ -7,8 +7,11 @@ import java.util.List;
 import java.util.UUID;
 import org.heidiverse.heidi.entity.model.entity.IssuingSubcaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface IssuingSubcaRepository extends JpaRepository<IssuingSubcaEntity, UUID> {
     List<IssuingSubcaEntity> findAllByTenantIdOrderByCreatedAtDesc(String tenantId);
     boolean existsByKeyId(UUID keyId);
+    @Query("select count(ca) > 0 from IssuingSubcaEntity ca where ca.parentCaId = :parentCaId and ca.deletedAt is null")
+    boolean existsByParentCaId(UUID parentCaId);
 }

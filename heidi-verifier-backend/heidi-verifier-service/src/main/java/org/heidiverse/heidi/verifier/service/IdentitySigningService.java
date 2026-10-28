@@ -17,12 +17,9 @@ import org.heidiverse.heidi.signing.adapters.SigningClientKeys;
 import tools.jackson.databind.ObjectMapper;
 
 import java.security.MessageDigest;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.text.ParseException;
 import java.util.*;
 import java.net.URI;
-import java.io.ByteArrayInputStream;
 
 /** Resolves the identity-owned signer through the signing provider. */
 @Service
@@ -181,13 +178,9 @@ public class IdentitySigningService {
         if (certificateChain.size() < 2) return certificateChain;
 
         try {
-            var bytes = Base64.getDecoder().decode(certificateChain.getLast());
-            var factory = CertificateFactory.getInstance("X.509");
-            var root = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(bytes));
-            if (!root.getSubjectX500Principal().equals(root.getIssuerX500Principal())) {
+            if (!org.heidiverse.heidi.signing.adapters.ManagedCertificates.selfSigned(certificateChain.getLast())) {
                 return certificateChain;
             }
-            root.verify(root.getPublicKey());
 
             return certificateChain.subList(0, certificateChain.size() - 1);
         } catch (Exception exception) {

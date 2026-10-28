@@ -107,7 +107,7 @@ run *names:
 # and corrupt ~/.m2 — only long-running, always-safe-to-kill `spring-boot:run`
 # processes are running in parallel at that point.
 # Build artifacts needed by `just run`, sequentially.
-build: local-env build-signing-adapters
+build: local-env build-signing-adapters prepare-pki
     #!/usr/bin/env bash
     set -Eeuo pipefail
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} -pl heidi-platform-api-ws -am -pl '{{shared_exclusions}}' install -DskipTests
@@ -303,7 +303,7 @@ reset-db: local-env
     {{compose}} exec -T platform-postgres /docker-entrypoint-initdb.d/10-databases.sh
 
 # Run the combined backend API locally
-dev-api: local-env start-caddy build-signing-adapters
+dev-api: local-env start-caddy build-signing-adapters prepare-pki
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} -pl heidi-platform-api-ws -am -pl '{{shared_exclusions}}' install -DskipTests
     {{platform_maven}} -f heidi-platform-api/heidi-platform-api-ws/pom.xml {{maven_kapunsdk_args}} {{spring_boot_maven_plugin}} {{spring_boot_native_access_args}} -Dspring-boot.run.profiles=local,no-security
 
@@ -312,7 +312,7 @@ prepare-signer-interface:
     cd {{signer_interface_dir}} && {{gradle}} publishToMavenLocal
 
 # Build and install the shared backend module once, so parallel dev tasks don't race on it
-dev-shared: prepare-signer-interface
+dev-shared: prepare-signer-interface prepare-pki
     {{maven}} -f heidi-shared-backend/pom.xml install -DskipTests
 
 # Run the issuer backend locally
@@ -326,7 +326,7 @@ dev-verifier: local-env start-caddy build-signing-adapters
     {{verifier_maven}} -f heidi-verifier-backend/heidi-verifier-ws/pom.xml {{maven_kapunsdk_args}} {{spring_boot_maven_plugin}} {{spring_boot_native_access_args}} -Dspring-boot.run.profiles=local,no-security
 
 # Run the reference signing service locally
-dev-signing: local-env dev-db prepare-signer-interface
+dev-signing: local-env dev-db prepare-signer-interface prepare-pki
     {{maven}} -f heidi-signing-service/pom.xml install -DskipTests
     {{maven}} -f heidi-signing-service/software/service/pom.xml {{spring_boot_maven_plugin}} {{spring_boot_native_access_args}} -Dspring-boot.run.profiles=local
 
@@ -335,7 +335,7 @@ dev-web skip="": local-env start-caddy
     just run-web "{{skip}}"
 
 # Build platform API modules
-build-api: build-signing-adapters
+build-api: build-signing-adapters prepare-pki
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} install
 
 # Build issuer backend modules
@@ -347,7 +347,7 @@ build-verifier: build-signing-adapters
     {{verifier_maven}} -f heidi-verifier-backend/pom.xml {{maven_kapunsdk_args}} install
 
 # Build the reference signing service
-build-signing:
+build-signing: prepare-pki
     #!/usr/bin/env bash
     set -Eeuo pipefail
     if [[ "${CONFORMANCE_SIGNER_INTERFACE_INSTALLED:-false}" != "true" ]]; then
@@ -363,11 +363,11 @@ build-web:
     cd heidi-web && {{pnpm}} run build
 
 # Regenerate the committed integrator and management OpenAPI specifications
-openapi: build-signing-adapters
+openapi: build-signing-adapters prepare-pki
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} -pl heidi-platform-api-ws -am -Dtest=OpenApiSnapshotIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false -Dopenapi.update=true test
 
 # Run platform API tests
-test-api: build-signing-adapters
+test-api: build-signing-adapters prepare-pki
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} test
 
 # Run issuer backend tests
@@ -379,7 +379,7 @@ test-verifier: build-signing-adapters
     {{verifier_maven}} -f heidi-verifier-backend/pom.xml {{maven_kapunsdk_args}} test
 
 # Run signing service tests
-test-signing: prepare-signer-interface
+test-signing: prepare-signer-interface prepare-pki
     {{maven}} -f heidi-signing-service/pom.xml test
 
 # Run signing adapter tests
@@ -401,7 +401,7 @@ conformance-oid4vc: conformance-build-oid4vc
 [private]
 conformance-build:
     # CI installs the signer artifact; local runs build it before the shared reactor.
-    if [[ "${CONFORMANCE_SIGNER_INTERFACE_INSTALLED:-false}" != "true" ]]; then just prepare-signer-interface; fi
+    if [[ "${CONFORMANCE_SIGNER_INTERFACE_INSTALLED:-false}" != "true" ]]; then just prepare-signer-interface; just prepare-pki; fi
     {{maven}} -f heidi-shared-backend/pom.xml install -DskipTests
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} -pl heidi-platform-api-ws -am -pl '{{shared_exclusions}}' install -DskipTests
     {{verifier_maven}} -f heidi-verifier-backend/pom.xml {{maven_kapunsdk_args}} -pl heidi-verifier-ws -am -pl '{{shared_exclusions}}' install -DskipTests
@@ -411,7 +411,7 @@ conformance-build:
 [private]
 conformance-build-oid4vc:
     # The shared reactor provides the signing adapters consumed by all three services.
-    if [[ "${CONFORMANCE_SIGNER_INTERFACE_INSTALLED:-false}" != "true" ]]; then just prepare-signer-interface; fi
+    if [[ "${CONFORMANCE_SIGNER_INTERFACE_INSTALLED:-false}" != "true" ]]; then just prepare-signer-interface; just prepare-pki; fi
     {{maven}} -f heidi-shared-backend/pom.xml install -DskipTests
     {{platform_maven}} -f heidi-platform-api/pom.xml {{maven_kapunsdk_args}} -pl heidi-platform-api-ws -am -pl '{{shared_exclusions}}' install -DskipTests
     {{issuer_maven}} -f heidi-issuer-backend/pom.xml {{maven_kapunsdk_args}} -pl heidi-issuer-ws -am install -DskipTests
@@ -447,3 +447,7 @@ local-env:
 [private]
 web-deps:
     test -d heidi-web/node_modules || (cd heidi-web && {{pnpm}} install)
+
+# Publish the platform-local X.509 UniFFI facade.
+prepare-pki:
+    ./heidi-signing-crypto/gradlew -p heidi-platform-api/heidi-pki-x509 publishToMavenLocal

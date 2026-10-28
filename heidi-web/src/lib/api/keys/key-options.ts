@@ -18,17 +18,18 @@ export function keyOptions(keys: PlatformKey[], type: IdentityKeySlotType) {
 }
 
 export function certificateOptions(keys: PlatformKey[], profile: string, trustSystem: string, now = Date.now()) {
+  if (trustSystem === "Switzerland") return [];
   return keys.flatMap((key) => {
     const version = key.versions.find((candidate) => candidate.id === key.activeVersionId);
     if (version?.status !== "ACTIVE" || !version.usages.includes("SIGN")) return [];
     return version.certificates.filter((certificate) => !certificate.retiredAt
       && certificate.profile === profile
-      && certificate.trustSystem === trustSystem
+      && (certificate.trustSystem == null || certificate.trustSystem === "Default" || certificate.trustSystem === trustSystem)
       && certificate.notBefore && Date.parse(certificate.notBefore) <= now
       && certificate.notAfter && Date.parse(certificate.notAfter) > now)
       .map((certificate) => ({
         id: certificate.id, keyId: key.id,
-        label: `${key.keyId} · ${certificate.eudiLeafProfile ? `${certificate.eudiLeafProfile} · ` : ""}${certificate.source} · expires ${certificate.notAfter?.slice(0, 10)} · ${certificate.id.slice(0, 8)}`,
+        label: `${key.keyId} · ${certificate.eudiLeafProfile ? `${certificate.eudiLeafProfile} · ` : ""}${certificate.source} · ${certificate.anchor?.origin === "PLATFORM" ? "Platform CA" : certificate.anchor?.origin === "EXTERNAL" ? "External CA" : "Unknown anchor"} · expires ${certificate.notAfter?.slice(0, 10)} · ${certificate.id.slice(0, 8)}`,
       }));
   });
 }

@@ -1,3 +1,4 @@
+import { CertificateChain } from "@/components/pki/certificate-chain";
 // SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -338,11 +339,10 @@ function SlotAssignmentDialog({
   const certificates =
     selectedVersion?.certificates?.filter(
       (certificate) =>
+        trustSystem !== "Switzerland" && !certificate.retiredAt &&
         certificate.profile === profile &&
-        (certificate.trustSystem ?? "Default") ===
-          (type === "STATUS_LIST" || type === "FEDERATION"
-            ? "Default"
-            : trustSystem) &&
+        (certificate.trustSystem == null || certificate.trustSystem === "Default" ||
+          certificate.trustSystem === (type === "STATUS_LIST" || type === "FEDERATION" ? "Default" : trustSystem)) &&
         certificate.notBefore &&
         Date.parse(certificate.notBefore) <= Date.now() &&
         certificate.notAfter &&
@@ -412,6 +412,7 @@ function SlotAssignmentDialog({
     !save.isPending &&
     (!resolvedKeyId || !assigned.has(resolvedKeyId)) &&
     (!certificateMode || Boolean(effectiveCertificateId)) &&
+    (certificates.length <= 1 || Boolean(effectiveCertificateId)) &&
     (!swissIdentity || Boolean(swissDid.trim())) &&
     (type === "OPERATION"
       ? Boolean(providerId) && Boolean(operation.trim())
@@ -587,8 +588,8 @@ function SlotAssignmentDialog({
                 )}
                 {certificateMode && (
                   <FieldDescription>
-                    The certificate determines the signing key. Only valid EUDI
-                    certificates of the required profile are offered.
+                    The certificate determines the signing key. Only valid
+                    certificates of the required purpose are offered.
                   </FieldDescription>
                 )}
               </Field>
@@ -620,7 +621,7 @@ function SlotAssignmentDialog({
                 }}
               />
             )}
-            {selectedKey && type !== "DECRYPTION" && (
+            {selectedKey && type !== "DECRYPTION" && trustSystem !== "Switzerland" && (
               <Button
                 variant="outline"
                 onClick={() => setEditingCertificate(true)}
@@ -690,6 +691,10 @@ function SlotAssignmentDialog({
                   {certificates[0]?.notAfter?.slice(0, 10) ?? "unknown"}
                 </p>
               )}
+            {trustSystem !== "Switzerland" && type !== "DECRYPTION" && certificates.find((certificate) => certificate.id === effectiveCertificateId) && (() => {
+              const certificate = certificates.find((candidate) => candidate.id === effectiveCertificateId);
+              return certificate && <CertificateChain chain={certificate.chain} anchor={certificate.anchor} details={certificate.chainDetails} />;
+            })()}
           </div>
           <DialogFooter className="flex-wrap">
             {row.slot ? (
@@ -733,7 +738,7 @@ function SlotAssignmentDialog({
                         : null,
                     keyId: resolvedKeyId || null,
                     certificateId:
-                      type === "DECRYPTION"
+                      type === "DECRYPTION" || trustSystem === "Switzerland"
                         ? null
                         : (effectiveCertificateId ?? null),
                   })

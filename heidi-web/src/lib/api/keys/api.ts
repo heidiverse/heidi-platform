@@ -13,10 +13,27 @@ export interface KeyCertificate {
   eudiLeafProfile?: "PID" | "EAA" | null;
   trustSystem: "Default" | "EUDI" | "Switzerland" | "Custom" | "OIDF" | null;
   chain: string[];
+  issuingCaId?: string | null;
+  anchor?: CertificateAnchor;
+  chainDetails?: CertificateDetail[];
   notBefore?: string;
   notAfter?: string;
   firstUsedAt?: string;
   retiredAt?: string;
+}
+
+export interface CertificateAnchor {
+  origin: "PLATFORM" | "EXTERNAL" | "UNKNOWN";
+  subjectDn?: string | null;
+  fingerprint?: string | null;
+  caId?: string | null;
+}
+export interface CertificateDetail {
+  subjectDn: string;
+  issuerDn: string;
+  fingerprint: string;
+  pathLength?: number | null;
+  notAfter?: string;
 }
 
 export type KeyUsage = "SIGN" | "KEY_AGREEMENT" | "UNWRAP";

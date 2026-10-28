@@ -321,8 +321,10 @@ public class SigningKeyService {
                 .filter(slot -> slot.getType() != org.heidiverse.heidi.entity.model.issuer.IdentityKeySlotType.DECRYPTION)
                 .map(slot -> {
                     var profile = slot.getType().certificateProfile(slot.getTrustSystem());
-                    var certificates = certificateRepository.forProfile(versionId, profile,
-                                    SigningCertificateRules.framework(slot.getTrustSystem())).stream()
+                    var certificates = certificateRepository.forVersion(versionId).stream()
+                            .filter(certificate -> certificate.getProfile() == profile)
+                            .filter(certificate -> SigningCertificateRules.compatible(
+                                    certificate.getTrustSystem(), slot.getTrustSystem()))
                             .filter(certificate -> SigningCertificateRules.validAt(certificate, now))
                             .map(SigningCertificateEntity::getId).toList();
                     return new ActivationSlot(slot.getId(), slot.getIdentityId(), slot.getType(),
@@ -489,6 +491,15 @@ public class SigningKeyService {
             String tenantId, UUID keyId, UUID keyVersionId, List<String> certificateChain,
             SigningCertificateProfile profile, SigningCertificateSource source,
             IssuerTrustSystem trustSystem, String eudiLeafProfile) {
+        return setCertificateChain(tenantId, keyId, keyVersionId, certificateChain,
+                profile, source, trustSystem, eudiLeafProfile, null);
+    }
+
+    @Transactional
+    public UUID setCertificateChain(
+            String tenantId, UUID keyId, UUID keyVersionId, List<String> certificateChain,
+            SigningCertificateProfile profile, SigningCertificateSource source,
+            IssuerTrustSystem trustSystem, String eudiLeafProfile, UUID issuingCaId) {
         var key = ownedForUpdate(tenantId, keyId);
         var version = versionRepository.findById(keyVersionId)
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -513,54 +524,28 @@ public class SigningKeyService {
         entity.setSource(source);
         entity.setTrustSystem(trustSystem);
         entity.setEudiLeafProfile(eudiLeafProfile);
+        entity.setIssuingCaId(issuingCaId);
         entity.setCertificateChain(certificateChain);
-        entity.setNotBefore(leaf.getNotBefore().toInstant());
-        entity.setNotAfter(leaf.getNotAfter().toInstant());
+        entity.setNotBefore(Instant.ofEpochSecond(leaf.getNotBefore()));
+        entity.setNotAfter(Instant.ofEpochSecond(leaf.getNotAfter()));
         entity.setCreatedAt(Instant.now());
         certificateRepository.save(entity);
         return entity.getId();
     }
 
-    private java.security.cert.X509Certificate validateChain(
+    private uniffi.heidi_pki_x509.CertificateInfo validateChain(
             SigningKeyVersionEntity version, List<String> chain) {
-        if (chain == null || chain.isEmpty()) {
-            throw new IllegalArgumentException("A certificate chain is required");
-        }
+        if (chain == null || chain.isEmpty()) throw new IllegalArgumentException("A certificate chain is required");
         try {
-            var factory = java.security.cert.CertificateFactory.getInstance("X.509");
-            var parsed = new java.util.ArrayList<java.security.cert.X509Certificate>();
-            for (var encoded : chain) {
-                var certificate = (java.security.cert.X509Certificate) factory.generateCertificate(
-                        new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(encoded)));
-                certificate.checkValidity();
-                parsed.add(certificate);
+            var key = com.nimbusds.jose.jwk.JWK.parse(version.getPublicJwk());
+            if (!(key instanceof com.nimbusds.jose.jwk.AsymmetricJWK asymmetric)) {
+                throw new IllegalArgumentException("Certificate requires an asymmetric key");
             }
-            for (int index = 0; index < parsed.size() - 1; index++) {
-                var child = parsed.get(index);
-                var issuer = parsed.get(index + 1);
-                if (!child.getIssuerX500Principal().equals(issuer.getSubjectX500Principal())) {
-                    throw new IllegalArgumentException("Certificate issuer does not match chain order");
-                }
-                var usage = issuer.getKeyUsage();
-                if (issuer.getBasicConstraints() < 0 || usage == null
-                        || usage.length <= 5 || !usage[5]) {
-                    throw new IllegalArgumentException("Issuer certificate is not a signing CA");
-                }
-                child.verify(issuer.getPublicKey());
-            }
-            var anchor = parsed.getLast();
-            if (anchor.getSubjectX500Principal().equals(anchor.getIssuerX500Principal())) {
-                anchor.verify(anchor.getPublicKey());
-            }
-            var publicKey = com.nimbusds.jose.jwk.JWK.parse(version.getPublicJwk());
-            if (!(publicKey instanceof com.nimbusds.jose.jwk.AsymmetricJWK asymmetric)
-                    || !java.util.Arrays.equals(asymmetric.toPublicKey().getEncoded(),
-                            parsed.getFirst().getPublicKey().getEncoded())) {
-                throw new IllegalArgumentException("Certificate does not match the key version");
-            }
-            return parsed.getFirst();
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("Invalid certificate chain: " + exception.getMessage(), exception);
+            return org.heidiverse.heidi.signing.adapters.ManagedCertificates.validate(chain,
+                    uniffi.heidi_pki_x509.ChainKind.SIGNING, uniffi.heidi_pki_x509.ChainEnd.PARTIAL,
+                    uniffi.heidi_pki_x509.IssuerUsage.REQUIRED, asymmetric.toPublicKey().getEncoded()).getFirst();
+        } catch (Exception error) {
+            throw new IllegalArgumentException("Invalid certificate chain: " + error.getMessage(), error);
         }
     }
 

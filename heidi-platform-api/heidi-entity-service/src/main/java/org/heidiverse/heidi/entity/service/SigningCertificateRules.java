@@ -27,12 +27,18 @@ final class SigningCertificateRules {
             throw new IllegalArgumentException("Select a certificate for the active key version");
         }
         if (certificate.getProfile() != profile
-                || !Objects.equals(framework(certificate.getTrustSystem()), framework(trust))) {
+                || !compatible(certificate.getTrustSystem(), trust)) {
             throw new IllegalArgumentException("Certificate profile or trust framework does not match the slot");
         }
         if (!validAt(certificate, Instant.now())) {
             throw new IllegalArgumentException("Slot certificate is expired, not yet valid, or incomplete");
         }
+    }
+
+    static boolean compatible(IssuerTrustSystem certificateTrust, IssuerTrustSystem trust) {
+        if (trust == IssuerTrustSystem.Switzerland) return false;
+        return framework(certificateTrust) == null
+                || Objects.equals(framework(certificateTrust), framework(trust));
     }
 
     static IssuerTrustSystem framework(IssuerTrustSystem trust) {

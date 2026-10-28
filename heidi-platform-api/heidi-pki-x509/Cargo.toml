@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "heidi-pki-x509"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kapun-x509 = { git = "https://github.com/KapunSDK/kapun-sdk.git", branch = "feature/x509-certificate-builder", default-features = false, features = ["management"] }
+uniffi = "=0.32.0"
+thiserror = "2"

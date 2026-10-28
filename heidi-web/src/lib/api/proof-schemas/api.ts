@@ -12,6 +12,7 @@ import type {
   CredentialIssuerSettings,
 } from "@/types/credential-schema";
 import type { PresentationProfileId } from "@/types/ecosystem-profile";
+import { findPresentationProfile } from "@/types/ecosystem-profile";
 import type {
   TrustedAuthorityQuery,
   VerifierInfo,
@@ -96,8 +97,29 @@ export async function updateProofSchema({
   verifierClientIdScheme: _verifierClientIdScheme,
   verifierClientIdSchemeOverridden: _verifierClientIdSchemeOverridden,
   verifierTrustSystem: _verifierTrustSystem,
+  registrationCertificate,
+  swissIdentityStatement,
+  swissVerificationQueryStatement,
+  swissVerificationQueryEnabled,
+  alwaysIncludeDcqlQuery,
+  swissProtectedVerificationStatements,
   ...schemaDetails
 }: ProofSchemaCreateUpdate & { uuid: string }) {
+  const profileFamily = findPresentationProfile(
+    schemaDetails.presentationProfileId,
+  )?.family;
+  const profileSpecificSettings = {
+    ...(profileFamily === "eudi" ? { registrationCertificate } : {}),
+    ...(profileFamily === "swiss"
+      ? {
+          swissIdentityStatement,
+          swissVerificationQueryStatement,
+          swissVerificationQueryEnabled,
+          alwaysIncludeDcqlQuery,
+          swissProtectedVerificationStatements,
+        }
+      : {}),
+  };
   const res = await fetchWithRedirect(
     new URL(
       `management/v1/proof-schemas/update/${uuid}`,
@@ -110,6 +132,7 @@ export async function updateProofSchema({
       },
       body: JSON.stringify({
         ...schemaDetails,
+        ...profileSpecificSettings,
         verifierIdentityId: payloadVerifierIdentityId(verifierIdentity),
       }),
     },

@@ -507,19 +507,19 @@ public class ProofSchemeServiceTest extends BaseServiceTest {
     }
 
     @Test
-    void rejectsSwissStatementsOutsideSwissProfile() {
+    void rejectsProfileSpecificConfigurationWhenAnotherProfileIsSelected() {
         var payload = new ProofSchemePayload(
                 "test title",
                 "test purpose",
-                EcosystemProfileId.EUDI_PRESENTATION_2026_1,
+                EcosystemProfileId.OIDF_PRESENTATION_2026_1,
                 validationLogic,
                 null,
                 "",
-                1,
                 null,
                 null,
                 null,
                 null,
+                "registration-certificate",
                 "identity-statement",
                 null,
                 List.of(),

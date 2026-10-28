@@ -21,6 +21,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.heidiverse</groupId>
+            <artifactId>heidi-pki-x509-jvm</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.kapunsdk</groupId>
             <artifactId>kapun-trust-jvm</artifactId>
             <version>${kapunsdk.version}</version>

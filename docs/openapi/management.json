@@ -3664,6 +3664,16 @@
             "format" : "uuid"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SelfSignRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -3719,6 +3729,43 @@
                 "schema" : {
                   "type" : "string",
                   "format" : "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "platformSession" : [ ]
+        } ]
+      }
+    },
+    "/management/v1/issuing-pki/{id}/certify" : {
+      "post" : {
+        "tags" : [ "issuing-pki-controller" ],
+        "operationId" : "certify",
+        "parameters" : [ {
+          "name" : "tenantId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IssuingSubcaEntity"
                 }
               }
             }
@@ -5579,6 +5626,38 @@
         } ]
       }
     },
+    "/management/v1/issuing-pki/{id}" : {
+      "delete" : {
+        "tags" : [ "issuing-pki-controller" ],
+        "summary" : "Delete a managed CA branch",
+        "description" : "Hides the selected CA and its descendants. Issued certificates, keys, trust anchors and public certificate URLs remain available.",
+        "operationId" : "deleteChain",
+        "parameters" : [ {
+          "name" : "tenantId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "security" : [ {
+          "platformSession" : [ ]
+        } ]
+      }
+    },
     "/management/v1/integrations/delete/{id}" : {
       "delete" : {
         "tags" : [ "integration-controller" ],
@@ -5956,6 +6035,25 @@
           }
         }
       },
+      "Anchor" : {
+        "type" : "object",
+        "properties" : {
+          "origin" : {
+            "type" : "string",
+            "enum" : [ "PLATFORM", "EXTERNAL", "UNKNOWN" ]
+          },
+          "subjectDn" : {
+            "type" : "string"
+          },
+          "fingerprint" : {
+            "type" : "string"
+          },
+          "caId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
       "Certificate" : {
         "type" : "object",
         "properties" : {
@@ -5995,6 +6093,40 @@
           },
           "eudiLeafProfile" : {
             "type" : "string"
+          },
+          "issuingCaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "anchor" : {
+            "$ref" : "#/components/schemas/Anchor"
+          },
+          "chainDetails" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChainEntry"
+            }
+          }
+        }
+      },
+      "ChainEntry" : {
+        "type" : "object",
+        "properties" : {
+          "subjectDn" : {
+            "type" : "string"
+          },
+          "issuerDn" : {
+            "type" : "string"
+          },
+          "fingerprint" : {
+            "type" : "string"
+          },
+          "pathLength" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "notAfter" : {
+            "type" : "number"
           }
         }
       },
@@ -7556,6 +7688,10 @@
           "providerId" : {
             "type" : "integer",
             "format" : "int32"
+          },
+          "parentCaId" : {
+            "type" : "string",
+            "format" : "uuid"
           }
         }
       },
@@ -7597,6 +7733,32 @@
           },
           "createdAt" : {
             "type" : "number"
+          },
+          "parentCaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "anchor" : {
+            "$ref" : "#/components/schemas/Anchor"
+          },
+          "chainDetails" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChainEntry"
+            }
+          }
+        }
+      },
+      "SelfSignRequest" : {
+        "type" : "object",
+        "properties" : {
+          "pathLengthMode" : {
+            "type" : "string",
+            "enum" : [ "LIMITED", "UNLIMITED" ]
+          },
+          "pathLength" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       },
@@ -7615,7 +7777,14 @@
           },
           "profile" : {
             "type" : "string",
-            "enum" : [ "PID", "EAA" ]
+            "enum" : [ "GENERIC", "PID", "EAA" ]
+          },
+          "purpose" : {
+            "type" : "string",
+            "enum" : [ "CREDENTIAL_SIGNING", "ACCESS", "STATUS_LIST" ]
+          },
+          "csr" : {
+            "type" : "string"
           }
         }
       },

@@ -270,10 +270,10 @@ public class ProofSchemeService {
                 updated.getVerifierClientIdScheme() != null,
                 effectiveRegistrationCertificate(updated),
                 effectiveSwissIdentityStatement(updated),
-                updated.getSwissVerificationQueryStatement(),
-                updated.isSwissVerificationQueryEnabled(),
-                updated.isAlwaysIncludeDcqlQuery(),
-                updated.getSwissProtectedVerificationStatements(),
+                effectiveSwissVerificationQueryStatement(updated),
+                effectiveSwissVerificationQueryEnabled(updated),
+                effectiveAlwaysIncludeDcqlQuery(updated),
+                effectiveSwissProtectedVerificationStatements(updated),
                 effectiveEudiVerificationTrustAnchors(updated),
                 effectiveSwissVerificationTrustAnchor(updated),
                 effectiveSwissTrustRegistryBaseUrl(updated),
@@ -343,10 +343,10 @@ public class ProofSchemeService {
                 inserted.getVerifierClientIdScheme() != null,
                 effectiveRegistrationCertificate(inserted),
                 effectiveSwissIdentityStatement(inserted),
-                inserted.getSwissVerificationQueryStatement(),
-                inserted.isSwissVerificationQueryEnabled(),
-                inserted.isAlwaysIncludeDcqlQuery(),
-                inserted.getSwissProtectedVerificationStatements(),
+                effectiveSwissVerificationQueryStatement(inserted),
+                effectiveSwissVerificationQueryEnabled(inserted),
+                effectiveAlwaysIncludeDcqlQuery(inserted),
+                effectiveSwissProtectedVerificationStatements(inserted),
                 effectiveEudiVerificationTrustAnchors(inserted),
                 effectiveSwissVerificationTrustAnchor(inserted),
                 effectiveSwissTrustRegistryBaseUrl(inserted),
@@ -755,10 +755,10 @@ public class ProofSchemeService {
                 proofSchemeEntity.getVerifierClientIdScheme() != null,
                 effectiveRegistrationCertificate(proofSchemeEntity),
                 effectiveSwissIdentityStatement(proofSchemeEntity),
-                proofSchemeEntity.getSwissVerificationQueryStatement(),
-                proofSchemeEntity.isSwissVerificationQueryEnabled(),
-                proofSchemeEntity.isAlwaysIncludeDcqlQuery(),
-                proofSchemeEntity.getSwissProtectedVerificationStatements(),
+                effectiveSwissVerificationQueryStatement(proofSchemeEntity),
+                effectiveSwissVerificationQueryEnabled(proofSchemeEntity),
+                effectiveAlwaysIncludeDcqlQuery(proofSchemeEntity),
+                effectiveSwissProtectedVerificationStatements(proofSchemeEntity),
                 effectiveEudiVerificationTrustAnchors(proofSchemeEntity),
                 effectiveSwissVerificationTrustAnchor(proofSchemeEntity),
                 effectiveSwissTrustRegistryBaseUrl(proofSchemeEntity),
@@ -1060,10 +1060,11 @@ public class ProofSchemeService {
     }
 
     private String effectiveRegistrationCertificate(ProofSchemeEntity entity) {
-        return entity.getRegistrationCertificate();
+        return isEudiPresentationProfile(entity) ? entity.getRegistrationCertificate() : null;
     }
 
     private String effectiveSwissIdentityStatement(ProofSchemeEntity entity) {
+        if (!isSwissPresentationProfile(entity)) return null;
         if (entity.getSwissIdentityStatement() != null
                 && !entity.getSwissIdentityStatement().isBlank()) {
             return entity.getSwissIdentityStatement();
@@ -1074,7 +1075,27 @@ public class ProofSchemeService {
                 .orElse(null);
     }
 
+    private String effectiveSwissVerificationQueryStatement(ProofSchemeEntity entity) {
+        return isSwissPresentationProfile(entity)
+                ? entity.getSwissVerificationQueryStatement() : null;
+    }
+
+    private boolean effectiveSwissVerificationQueryEnabled(ProofSchemeEntity entity) {
+        return isSwissPresentationProfile(entity) && entity.isSwissVerificationQueryEnabled();
+    }
+
+    private boolean effectiveAlwaysIncludeDcqlQuery(ProofSchemeEntity entity) {
+        return isSwissPresentationProfile(entity) && entity.isAlwaysIncludeDcqlQuery();
+    }
+
+    private List<String> effectiveSwissProtectedVerificationStatements(
+            ProofSchemeEntity entity) {
+        return isSwissPresentationProfile(entity)
+                ? entity.getSwissProtectedVerificationStatements() : List.of();
+    }
+
     private List<String> effectiveEudiVerificationTrustAnchors(ProofSchemeEntity entity) {
+        if (!isEudiPresentationProfile(entity)) return List.of();
         var identity = effectiveIdentity(entity);
         return identity == null ? List.of() : eudiTrustAnchors(identity);
     }
@@ -1091,17 +1112,33 @@ public class ProofSchemeService {
     }
 
     private String effectiveSwissVerificationTrustAnchor(ProofSchemeEntity entity) {
+        if (!isSwissPresentationProfile(entity)) return null;
         var identity = effectiveIdentity(entity);
         return identity == null ? null : identity.getSwissVerificationTrustAnchor();
     }
 
     private String effectiveSwissTrustRegistryBaseUrl(ProofSchemeEntity entity) {
+        if (!isSwissPresentationProfile(entity)) return null;
         var identity = effectiveIdentity(entity);
         if (identity == null) return null;
         return identityTrustRequest(identity, IssuerTrustSystem.Switzerland)
                 .map(org.heidiverse.heidi.entity.model.issuer.IssuerTrustConfigurationRequest::swissRegistryBaseUrl)
                 .filter(value -> value != null && !value.isBlank())
                 .orElse(null);
+    }
+
+    private boolean isSwissPresentationProfile(ProofSchemeEntity entity) {
+        return profileFamily(entity) == EcosystemProfileFamily.SWISS_SWIYU;
+    }
+
+    private boolean isEudiPresentationProfile(ProofSchemeEntity entity) {
+        return profileFamily(entity) == EcosystemProfileFamily.EUDI_WALLET;
+    }
+
+    private EcosystemProfileFamily profileFamily(ProofSchemeEntity entity) {
+        return EcosystemProfileCatalog.require(
+                effectivePresentationProfileId(entity), EcosystemProfileRole.PRESENTATION)
+                .family();
     }
 
     private java.util.Optional<org.heidiverse.heidi.entity.model.issuer.IssuerTrustConfigurationRequest>

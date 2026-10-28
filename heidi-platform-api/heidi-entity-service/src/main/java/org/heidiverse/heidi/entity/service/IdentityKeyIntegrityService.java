@@ -234,8 +234,7 @@ public class IdentityKeyIntegrityService {
                 } else {
                     var expectedProfile = slot.getType().certificateProfile(slot.getTrustSystem());
                     if (certificate.getProfile() != expectedProfile
-                            || (certificate.getProfile() == SigningCertificateProfile.ACCESS
-                                && certificate.getTrustSystem() != slot.getTrustSystem())) {
+                            || !SigningCertificateRules.compatible(certificate.getTrustSystem(), slot.getTrustSystem())) {
                         violations.add(new IdentityKeyViolation(
                                 "SLOT_CERTIFICATE_PROFILE", identity.getSlug(),
                                 "slot certificate profile does not match its role"));
@@ -248,10 +247,12 @@ public class IdentityKeyIntegrityService {
                         ? null : versionRepository.findById(key.getActiveVersionId()).orElse(null);
                 var profile = slot.getType().certificateProfile(slot.getTrustSystem());
                 var hasCertificate = activeVersion != null
-                        && !certificateRepository
-                                .forProfile(
-                                        activeVersion.getId(), profile, slot.getTrustSystem())
-                                .isEmpty();
+                        && certificateRepository.forVersion(activeVersion.getId()).stream()
+                                .filter(certificate -> certificate.getProfile() == profile)
+                                .filter(certificate -> SigningCertificateRules.compatible(
+                                        certificate.getTrustSystem(), slot.getTrustSystem()))
+                                .filter(certificate -> SigningCertificateRules.validAt(certificate, java.time.Instant.now()))
+                                .count() == 1;
                 if (!hasCertificate) {
                     violations.add(new IdentityKeyViolation(
                             "SLOT_CERTIFICATE_MISSING", identity.getSlug(),

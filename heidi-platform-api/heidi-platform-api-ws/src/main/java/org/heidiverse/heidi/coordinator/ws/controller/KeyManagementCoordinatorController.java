@@ -399,11 +399,18 @@ public class KeyManagementCoordinatorController {
     }
 
     private PlatformKeyResponse.Version version(SigningKeyEntity key, SigningKeyVersionEntity version) {
+        // Resolve provenance once per version, before applying any profile output rules.
+        List<org.heidiverse.heidi.entity.model.entity.IssuingSubcaEntity> authorities =
+                issuingSubcas == null || key.getTenantId() == null ? List.of()
+                        : issuingSubcas.findAllByTenantIdOrderByCreatedAtDesc(key.getTenantId());
         var certificates = service.certificates(key.getTenantId(), key.getId(), version.getId()).stream()
                 .map(certificate -> new PlatformKeyResponse.Certificate(certificate.getId(),
                         certificate.getProfile(), certificate.getSource(), certificate.getTrustSystem(),
                         certificate.getCertificateChain(), certificate.getNotBefore(), certificate.getNotAfter(),
-                        certificate.getFirstUsedAt(), certificate.getRetiredAt(), certificate.getEudiLeafProfile()))
+                        certificate.getFirstUsedAt(), certificate.getRetiredAt(), certificate.getEudiLeafProfile(),
+                        certificate.getIssuingCaId(), org.heidiverse.heidi.entity.service.CertificateAnchors.resolve(
+                                certificate.getCertificateChain(), authorities),
+                        org.heidiverse.heidi.entity.service.CertificateAnchors.details(certificate.getCertificateChain())))
                 .toList();
         return new PlatformKeyResponse.Version(
                 version.getId(), version.getVersion(), version.getAlgorithm(), version.getPublicJwk(),
