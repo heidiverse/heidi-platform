@@ -6827,6 +6827,19 @@
         },
         "required" : [ "certificateChain" ]
       },
+      "CredentialExpiry" : {
+        "type" : "object",
+        "properties" : {
+          "mode" : {
+            "type" : "string",
+            "enum" : [ "DEFAULT", "CUSTOM", "NONE" ]
+          },
+          "lifetimeDays" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "CredentialSchemeAttribute" : {
         "type" : "object",
         "properties" : {
@@ -6997,6 +7010,9 @@
           "issuanceProfileId" : {
             "type" : "string",
             "minLength" : 1
+          },
+          "credentialExpiry" : {
+            "$ref" : "#/components/schemas/CredentialExpiry"
           }
         },
         "required" : [ "id", "issuanceProfileId", "issuerKeyType" ]

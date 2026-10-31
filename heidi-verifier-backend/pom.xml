@@ -31,7 +31,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <sentry-version>8.56.0</sentry-version>
-        <kapunsdk.version>1.0.0-RC15</kapunsdk.version>
+        <kapunsdk.version>1.0.4-RC.2</kapunsdk.version>
         <heidi.expression.version>0.1.0</heidi.expression.version>
         <springdoc.version>3.0.1</springdoc.version>
 

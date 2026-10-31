@@ -6,6 +6,7 @@ import { z } from "zod";
 import { credentialSchemaValidationMessages } from "@/lib/translations";
 import {
   AttributeType,
+  CredentialExpiryMode,
   CredentialOfferType,
   CredentialSchemaState,
   FrontOverlayContentTypes,
@@ -113,7 +114,69 @@ export function createCredentialSchemaFormSchema(
       }),
       statusListId: z.string().optional(),
       credentialOfferType: z.enum(CredentialOfferType),
+      credentialExpiry: z.object({
+        mode: z.enum(CredentialExpiryMode),
+        lifetimeDays: z.number().int().min(1).nullable().optional(),
+      }).check((ctx) => {
+        if (
+          ctx.value.mode === CredentialExpiryMode.Custom &&
+          (ctx.value.lifetimeDays == null || ctx.value.lifetimeDays < 1)
+        ) {
+          ctx.issues.push({
+            code: "custom",
+            message: intl.$t({
+              id: "credentialSchema.validation.lifetimeRequired",
+              defaultMessage: "Enter a lifetime of at least one day",
+            }),
+            input: ctx.value,
+            path: ["lifetimeDays"],
+          });
+        }
+      }),
     }),
+  }).check((ctx) => {
+    const { credentialExpiry, supportedCredentialTypes } =
+      ctx.value.issuingSettings;
+    const zkpSupported =
+      supportedCredentialTypes.length === 0 ||
+      supportedCredentialTypes.includes(SupportedCredentialTypes.Zkp);
+    const mdocSupported =
+      supportedCredentialTypes.length === 0 ||
+      supportedCredentialTypes.includes(SupportedCredentialTypes.Mdoc);
+
+    if (zkpSupported && credentialExpiry.mode !== CredentialExpiryMode.Default) {
+      ctx.issues.push({
+        code: "custom",
+        message: intl.$t({
+          id: "credentialSchema.validation.expiryZkpUnsupported",
+          defaultMessage: "Choose the issuer default or remove ZKP credentials",
+        }),
+        input: credentialExpiry,
+        path: ["issuingSettings", "credentialExpiry", "mode"],
+      });
+    }
+    if (mdocSupported && credentialExpiry.mode === CredentialExpiryMode.None) {
+      ctx.issues.push({
+        code: "custom",
+        message: intl.$t({
+          id: "credentialSchema.validation.expiryMdocRequired",
+          defaultMessage: "mdoc credentials require an expiry",
+        }),
+        input: credentialExpiry,
+        path: ["issuingSettings", "credentialExpiry", "mode"],
+      });
+    }
+    if (mdocSupported && credentialExpiry.mode === CredentialExpiryMode.Custom) {
+      ctx.issues.push({
+        code: "custom",
+        message: intl.$t({
+          id: "credentialSchema.validation.expiryMdocCustomUnsupported",
+          defaultMessage: "Use the issuer default for mdoc credentials",
+        }),
+        input: credentialExpiry,
+        path: ["issuingSettings", "credentialExpiry", "mode"],
+      });
+    }
   });
 
   const generalCredentialSchema = z.object({

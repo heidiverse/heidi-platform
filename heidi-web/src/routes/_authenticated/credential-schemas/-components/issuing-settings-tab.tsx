@@ -43,6 +43,7 @@ import { useUser } from "@/lib/hooks/use-user";
 import { IssuerItem } from "@/routes/_authenticated/credential-schemas/-components/issuer-item";
 import { withForm } from "@/routes/_authenticated/credential-schemas/-form/form-context";
 import {
+  CredentialExpiryMode,
   CredentialOfferType,
   CredentialSchemaState,
   IssuerKeyTypes,
@@ -61,6 +62,8 @@ import {
   TrustSystem,
 } from "@/types/trust-system";
 import type { CredentialSchemaForm } from "./schemas";
+
+const DEFAULT_CREDENTIAL_LIFETIME_DAYS = 14;
 
 function displayNameForKeyType(keyType: IssuerKeyTypes) {
   switch (keyType) {
@@ -157,6 +160,22 @@ export const IssuingSettingsTab = withForm({
       form.store,
       (state) => state.values.issuingSettings.signingKeyIds,
     );
+    const supportedCredentialTypes = useStore(
+      form.store,
+      (state) => state.values.issuingSettings.supportedCredentialTypes,
+    );
+    const credentialExpiry = useStore(
+      form.store,
+      (state) => state.values.issuingSettings.credentialExpiry,
+    );
+    const mdocSupported =
+      !supportedCredentialTypes ||
+      supportedCredentialTypes.length === 0 ||
+      supportedCredentialTypes.includes(SupportedCredentialTypes.Mdoc);
+    const zkpSupported =
+      !supportedCredentialTypes ||
+      supportedCredentialTypes.length === 0 ||
+      supportedCredentialTypes.includes(SupportedCredentialTypes.Zkp);
     const statusList = statusLists.find((item) => item.id === statusListId);
     const profileOptions = useMemo(
       () => compatibleIssuanceProfiles(availableTrustSystems),
@@ -356,6 +375,142 @@ export const IssuingSettingsTab = withForm({
                   </Select>
                 )}
               </Field>
+              <form.AppField name="issuingSettings.credentialExpiry.mode">
+                {(field) => {
+                  const isInvalid =
+                    field.state.meta.isTouched && !field.state.meta.isValid;
+                  return (
+                    <Field data-invalid={isInvalid} orientation="horizontal">
+                      <FieldLabel htmlFor={field.name}>
+                        <FormattedMessage
+                          id="issuingSettings.credentialExpiry"
+                          defaultMessage="Credential expiry"
+                        />
+                      </FieldLabel>
+                      {published ? (
+                        <div className="text-sm">
+                          {field.state.value === CredentialExpiryMode.Custom
+                            ? $t({
+                                id: "issuingSettings.credentialExpiry.custom",
+                                defaultMessage: "Set lifetime",
+                              })
+                            : field.state.value === CredentialExpiryMode.None
+                              ? $t({
+                                  id: "issuingSettings.credentialExpiry.none",
+                                  defaultMessage: "No expiry",
+                                })
+                              : $t({
+                                  id: "issuingSettings.credentialExpiry.default",
+                                  defaultMessage: "Use issuer default",
+                                })}
+                        </div>
+                      ) : (
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(value) => {
+                            field.handleChange(value as CredentialExpiryMode);
+                            if (
+                              value === CredentialExpiryMode.Custom &&
+                              credentialExpiry.lifetimeDays == null
+                            ) {
+                              form.setFieldValue(
+                                "issuingSettings.credentialExpiry.lifetimeDays",
+                                DEFAULT_CREDENTIAL_LIFETIME_DAYS,
+                              );
+                            }
+                          }}
+                        >
+                          <SelectTrigger id={field.name}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={CredentialExpiryMode.Default}>
+                              <FormattedMessage
+                                id="issuingSettings.credentialExpiry.default"
+                                defaultMessage="Use issuer default"
+                              />
+                            </SelectItem>
+                            <SelectItem
+                              value={CredentialExpiryMode.Custom}
+                              disabled={zkpSupported || mdocSupported}
+                            >
+                              <FormattedMessage
+                                id="issuingSettings.credentialExpiry.custom"
+                                defaultMessage="Set lifetime"
+                              />
+                            </SelectItem>
+                            <SelectItem
+                              value={CredentialExpiryMode.None}
+                              disabled={mdocSupported || zkpSupported}
+                            >
+                              <FormattedMessage
+                                id="issuingSettings.credentialExpiry.none"
+                                defaultMessage="No expiry"
+                              />
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {isInvalid && (
+                        <FieldError errors={field.state.meta.errors} />
+                      )}
+                    </Field>
+                  );
+                }}
+              </form.AppField>
+              {credentialExpiry.mode === CredentialExpiryMode.Custom && (
+                <form.AppField name="issuingSettings.credentialExpiry.lifetimeDays">
+                  {(field) => {
+                    const isInvalid =
+                      field.state.meta.isTouched && !field.state.meta.isValid;
+                    return (
+                      <Field data-invalid={isInvalid} orientation="horizontal">
+                        <FieldLabel htmlFor={field.name}>
+                          <FormattedMessage
+                            id="issuingSettings.credentialExpiry.days"
+                            defaultMessage="Lifetime (days)"
+                          />
+                        </FieldLabel>
+                        {published ? (
+                          <div className="text-sm">
+                            {field.state.value ?? "—"}
+                          </div>
+                        ) : (
+                          <Input
+                            id={field.name}
+                            name={field.name}
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={field.state.value ?? ""}
+                            onChange={(event) =>
+                              field.handleChange(
+                                event.target.value === ""
+                                  ? undefined
+                                  : event.target.valueAsNumber,
+                              )
+                            }
+                            onBlur={field.handleBlur}
+                            aria-invalid={isInvalid}
+                          />
+                        )}
+                        {isInvalid && (
+                          <FieldError errors={field.state.meta.errors} />
+                        )}
+                      </Field>
+                    );
+                  }}
+                </form.AppField>
+              )}
+              {((mdocSupported && credentialExpiry.mode !== CredentialExpiryMode.Default) ||
+                (zkpSupported && credentialExpiry.mode !== CredentialExpiryMode.Default)) && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    <FormattedMessage
+                      id="issuingSettings.credentialExpiry.mdocWarning"
+                      defaultMessage="Custom expiry is not configurable for ZKP or mdoc credentials; mdoc credentials require expiry. Remove those formats or use the issuer default."
+                    />
+                  </p>
+                )}
               <Collapsible
                 defaultOpen={false}
                 className="group/profile border-t pt-2"

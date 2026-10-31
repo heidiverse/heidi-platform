@@ -6,6 +6,7 @@ import { fetchWithRedirect } from "@/lib/utils";
 import { readApiError } from "@/lib/utils/api-error";
 import type {
   AttributeType,
+  CredentialExpiry,
   CredentialOfferType,
   CredentialSchemaStyle,
   IssuerKeyTypes,
@@ -51,6 +52,7 @@ interface IssuerSettings {
   vct: string;
   signingKeyIds?: Partial<Record<TrustSystem, string | null>>;
   defaultTrustSystem?: TrustSystem | null;
+  credentialExpiry?: CredentialExpiry;
 }
 
 export interface AttributeRule {

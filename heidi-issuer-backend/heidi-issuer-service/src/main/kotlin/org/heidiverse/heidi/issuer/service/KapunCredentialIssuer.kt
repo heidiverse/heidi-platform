@@ -46,17 +46,18 @@ class KapunCredentialIssuer(
         ocaUrl: String? = null,
         statusList: CredentialData.StatusListReference? = null,
         vctMetadataUri: String? = null,
+        credentialExpiry: CredentialExpiry = CredentialExpiry.DEFAULT,
     ): String {
         val signer = signatureClient.fromSnapshot(issuerSlug, snapshot)
         val keyId = publishedIssuerJwkKeyId(signer.configuration, issuerSlug)
-        val now = Instant.now().epochSecond
+        val issuedAt = Instant.now()
         val claims = linkedMapOf<String, Any?>(
             "iss" to issuer,
             "vct" to vct,
-            "iat" to now,
-            "nbf" to now,
-            "exp" to now + properties.credentialLifetimeSeconds,
+            "iat" to issuedAt.epochSecond,
+            "nbf" to issuedAt.epochSecond,
         )
+        expiryAt(issuedAt, credentialExpiry)?.let { claims["exp"] = it.epochSecond }
         val disclosurePaths = mutableListOf<List<Any?>>()
         vctMetadataUri?.let { claims[VCT_METADATA_URI_CLAIM] = it }
         statusList?.let { claims["status"] = statusClaim(it) }
@@ -93,6 +94,7 @@ class KapunCredentialIssuer(
         holderJwk: String,
         snapshot: IssuerFlowSnapshot,
         trustSystem: TrustSystem = TrustSystem.Default,
+        credentialExpiry: CredentialExpiry = CredentialExpiry.DEFAULT,
     ): String {
         val signer = signatureClient.fromSnapshot(issuerSlug, snapshot)
         val namespaceAttributes = linkedMapOf<String, Any?>()
@@ -105,7 +107,11 @@ class KapunCredentialIssuer(
         require(certificates.isNotEmpty()) {
             "A certificate chain is required for mdoc issuer '$issuerSlug'"
         }
-        return Mdoc.create(propertiesValue, signer, docType, certificates, holderValue)
+        require(credentialExpiry.mode == CredentialExpiryMode.DEFAULT) {
+            "mdoc credentials require the issuer default expiry"
+        }
+        val mdoc = Mdoc.create(propertiesValue, signer, docType, certificates, holderValue)
+        return mdoc
             .getOrThrow()
             .mdoc
             .originalMdoc
@@ -121,6 +127,7 @@ class KapunCredentialIssuer(
         trustSystem: TrustSystem = TrustSystem.Default,
         ocaUrl: String? = null,
         statusList: CredentialData.StatusListReference? = null,
+        credentialExpiry: CredentialExpiry = CredentialExpiry.DEFAULT,
     ): String {
         val signer = signatureClient.fromSnapshot(issuerSlug, snapshot)
         val keyId = publishedIssuerJwkKeyId(signer.configuration, issuerSlug)
@@ -137,9 +144,9 @@ class KapunCredentialIssuer(
             "type" to listOf("VerifiableCredential", vct),
             "issuer" to issuer,
             "validFrom" to now.toString(),
-            "validUntil" to now.plusSeconds(properties.credentialLifetimeSeconds).toString(),
             "credentialSubject" to credentialSubject,
         )
+        expiryAt(now, credentialExpiry)?.let { claims["validUntil"] = it.toString() }
         statusList?.let { claims["status"] = statusClaim(it) }
         ocaUrl?.let {
             claims[RENDER_CLAIM] = hashMapOf(
@@ -160,6 +167,14 @@ class KapunCredentialIssuer(
         return credential.inner.originalSdjwt
     }
 
+    private fun expiryAt(now: Instant, expiry: CredentialExpiry): Instant? = when (expiry.mode) {
+        CredentialExpiryMode.DEFAULT -> now.plusSeconds(properties.credentialLifetimeSeconds)
+        CredentialExpiryMode.CUSTOM -> now.plusSeconds(
+            Math.multiplyExact(requireNotNull(expiry.lifetimeDays), SECONDS_PER_DAY),
+        )
+        CredentialExpiryMode.NONE -> null
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun putNested(root: MutableMap<String, Any?>, path: String, value: Any?) {
         val parts = path.split('.')
@@ -176,6 +191,10 @@ class KapunCredentialIssuer(
             "uri" to reference.uri,
         ),
     )
+
+    private companion object {
+        const val SECONDS_PER_DAY = 86_400L
+    }
 
     private fun publishedIssuerJwkKeyId(
         configuration: IssuerProperties.IssuerSigning,

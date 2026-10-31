@@ -664,6 +664,7 @@ class IssuanceService(
                     holderJwk,
                     snapshot,
                     trustSystem,
+                    metadata.credentialExpiry,
                 )
                 "dc+sd-jwt" -> credentialIssuer.issueSdJwt(
                     schemaData,
@@ -676,6 +677,7 @@ class IssuanceService(
                     ocaUrl = ocaUrl,
                     statusList = statusReference,
                     vctMetadataUri = metadata.vctMetadataUri,
+                    credentialExpiry = metadata.credentialExpiry,
                 )
                 "vc+sd-jwt" -> credentialIssuer.issueW3c(
                     schemaData,
@@ -687,6 +689,7 @@ class IssuanceService(
                     trustSystem,
                     ocaUrl,
                     statusReference,
+                    metadata.credentialExpiry,
                 )
                 "zkp_vc" -> bbsCredentialIssuer.issue(
                     schemaData,

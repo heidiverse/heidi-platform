@@ -10,5 +10,5 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-kapun-dcql-rust = { git = "https://github.com/KapunSDK/kapun-sdk.git", rev = "eefdf8a922f89c477fc4aedb923229d4487f807b", package = "kapun-dcql-rust", features = ["jlc"] }
+kapun-dcql-rust = { git = "https://github.com/KapunSDK/kapun-sdk.git", tag = "v1.0.4-RC.2", package = "kapun-dcql-rust", features = ["jlc"] }
 uniffi = { version = "=0.32.0" }

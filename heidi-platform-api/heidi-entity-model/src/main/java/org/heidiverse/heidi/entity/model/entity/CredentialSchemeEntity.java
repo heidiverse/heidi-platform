@@ -6,6 +6,7 @@ package org.heidiverse.heidi.entity.model.entity;
 import org.heidiverse.heidi.entity.model.credentialscheme.CredentialSchemeState;
 import org.heidiverse.heidi.entity.model.credentialscheme.CredentialType;
 import org.heidiverse.heidi.entity.model.issuer.IssuerKeyType;
+import org.heidiverse.heidi.entity.model.issuer.CredentialExpiry;
 import org.heidiverse.heidi.entity.model.issuer.IssuerTrustSystem;
 import org.heidiverse.heidi.coordinator.model.oid4vci.CredentialOfferType;
 
@@ -122,6 +123,13 @@ public class CredentialSchemeEntity {
     @Column(name = "issuance_profile_id", nullable = false)
     private String issuanceProfileId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "credential_expiry_mode", nullable = false)
+    private CredentialExpiry.Mode credentialExpiryMode = CredentialExpiry.Mode.DEFAULT;
+
+    @Column(name = "credential_lifetime_days")
+    private Long credentialLifetimeDays;
+
     private static final Set<CredentialType> DEFAULT_CREDENTIAL_TYPES =
             Set.of(CredentialType.SD_JWT, CredentialType.MSO_MDOC, CredentialType.ZKP_VC, CredentialType.W3C_VCDM, CredentialType.OPENBADGES);
 
@@ -140,6 +148,17 @@ public class CredentialSchemeEntity {
 
     public void setIssuanceProfileId(@NotNull String issuanceProfileId) {
         this.issuanceProfileId = issuanceProfileId;
+    }
+
+    public CredentialExpiry getCredentialExpiry() {
+        return new CredentialExpiry(credentialExpiryMode, credentialLifetimeDays);
+    }
+
+    public void setCredentialExpiry(CredentialExpiry credentialExpiry) {
+        var normalized = credentialExpiry == null
+                ? CredentialExpiry.defaultExpiry() : credentialExpiry;
+        credentialExpiryMode = normalized.mode();
+        credentialLifetimeDays = normalized.lifetimeDays();
     }
 
     public Integer getId() {

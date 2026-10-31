@@ -45,6 +45,7 @@ import { omit } from "@/lib/utils";
 import { argbToHex } from "@/lib/utils/color";
 import type { SelectedCredentialSchema } from "@/routes/_authenticated/proof-schemas/$proofSchemaId";
 import {
+  CredentialExpiryMode,
   CredentialOfferType,
   type CredentialSchema,
   CredentialSchemaState,
@@ -369,6 +370,9 @@ export function AddProofSchema({
                     issuerKeyType: IssuerKeyTypes.SOFTWARE_NO_AUTH,
                     issuanceProfileId:
                       EcosystemProfileId.CustomIssuance,
+                    credentialExpiry: {
+                      mode: CredentialExpiryMode.Default,
+                    },
                     credentialOfferType: CredentialOfferType.Value,
                     doctype: null,
                     namespace: null,

@@ -12,7 +12,7 @@ issuer_maven := env_var_or_default("MAVEN_ISSUER", maven)
 verifier_maven := env_var_or_default("MAVEN_VERIFIER", maven)
 pnpm := env_var_or_default("PNPM", "pnpm")
 gradle := env_var_or_default("GRADLE", "./gradlew")
-# Optional compatibility override, e.g. `KAPUNSDK_VERSION=1.0.0-RC4 just dev`.
+# Optional compatibility override, e.g. `KAPUNSDK_VERSION=1.0.4-RC.1 just dev`.
 kapunsdk_version := env_var_or_default("KAPUNSDK_VERSION", "")
 maven_kapunsdk_args := if kapunsdk_version == "" { "" } else { "-Dkapunsdk.version=" + kapunsdk_version }
 signer_interface_dir := env_var_or_default("SIGNER_INTERFACE_DIR", "heidi-signing-crypto")

@@ -19,6 +19,7 @@ import org.heidiverse.heidi.entity.model.exceptions.InvalidCredentialSchemeExcep
 import org.heidiverse.heidi.entity.model.exceptions.InvalidIssuerException;
 import org.heidiverse.heidi.entity.model.exceptions.SchemaNotFoundException;
 import org.heidiverse.heidi.entity.model.exceptions.UnauthorizedAccessException;
+import org.heidiverse.heidi.entity.model.issuer.CredentialExpiry;
 import org.heidiverse.heidi.entity.model.issuer.IssuerSettings;
 import org.heidiverse.heidi.entity.model.issuer.IssuerTrustSystem;
 import org.heidiverse.heidi.entity.model.issuer.IdentityKeySlotType;
@@ -293,6 +294,7 @@ public class CredentialSchemeService {
             throws InvalidIssuerException, InvalidCredentialSchemeException {
 
         validateIssuanceProfile(credentialScheme.issuerSettings());
+        validateCredentialExpiry(credentialScheme.issuerSettings());
         validateMaxBatchSize(credentialScheme.maxBatchSize());
         validateStatusList(credentialScheme.issuerSettings(), tenantId);
 
@@ -404,6 +406,7 @@ public class CredentialSchemeService {
                     InvalidCredentialSchemeException {
 
         validateIssuanceProfile(credentialScheme.issuerSettings());
+        validateCredentialExpiry(credentialScheme.issuerSettings());
         validateMaxBatchSize(credentialScheme.maxBatchSize());
 
         final var credentialSchemeEntity =
@@ -725,6 +728,8 @@ public class CredentialSchemeService {
                 credentialScheme.issuerSettings().credentialOfferType());
         credentialSchemeEntity.setIssuanceProfileId(
                 issuanceProfileId(credentialScheme.issuerSettings()));
+        credentialSchemeEntity.setCredentialExpiry(
+                credentialScheme.issuerSettings().credentialExpiry());
         return credentialSchemeDataService.insertScheme(credentialSchemeEntity);
     }
 
@@ -936,7 +941,8 @@ public class CredentialSchemeService {
                 credentialSchemeEntity.getSigningKeyIds(),
                 credentialSchemeEntity.getStatusListId(),
                 credentialSchemeEntity.getCredentialOfferType(),
-                credentialSchemeEntity.getIssuanceProfileId()),
+                credentialSchemeEntity.getIssuanceProfileId(),
+                credentialSchemeEntity.getCredentialExpiry()),
                 credentialSchemeEntity.getTenantId(),
                 credentialSchemeEntity.getMaxBatchSize(),
                 credentialSchemeEntity.getTemplateId());
@@ -989,6 +995,8 @@ public class CredentialSchemeService {
                 credentialScheme.issuerSettings().credentialOfferType());
         credentialSchemeEntity.setIssuanceProfileId(
                 issuanceProfileId(credentialScheme.issuerSettings()));
+        credentialSchemeEntity.setCredentialExpiry(
+                credentialScheme.issuerSettings().credentialExpiry());
 
         final var issuer =
                 issuerDataService
@@ -1019,9 +1027,10 @@ public class CredentialSchemeService {
                 || existing.getIssuerDefinition() == null
                 || !Objects.equals(existing.getIssuerDefinition().getId(), settings.id())
                 || !Objects.equals(existing.getSupportedCredentialTypes(),
-                        settings.supportedCredentialTypes())) {
+                        settings.supportedCredentialTypes())
+                || !Objects.equals(existing.getCredentialExpiry(), settings.credentialExpiry())) {
             throw new IllegalArgumentException(
-                    "Published credential schema trust, profile, identity, and format are immutable");
+                    "Published credential schema trust, profile, identity, format, and expiry are immutable");
         }
     }
 
@@ -1036,6 +1045,25 @@ public class CredentialSchemeService {
                 && legacyTrustSystem != profileTrustSystem) {
             throw new IllegalArgumentException(
                     "Trust system is incompatible with issuance profile " + profile.id());
+        }
+    }
+
+    private void validateCredentialExpiry(IssuerSettings settings) {
+        var supportedTypes = settings.supportedCredentialTypes();
+        if (settings.credentialExpiry().mode() != CredentialExpiry.Mode.DEFAULT
+                && (supportedTypes == null || supportedTypes.isEmpty()
+                        || supportedTypes.contains(CredentialType.ZKP_VC)
+                        || (settings.credentialExpiry().mode() == CredentialExpiry.Mode.CUSTOM
+                                && supportedTypes.contains(CredentialType.MSO_MDOC)))) {
+            throw new IllegalArgumentException(
+                    "Custom expiry settings are not supported for schemas that support ZKP or mdoc credentials");
+        }
+        if (settings.credentialExpiry().mode() != CredentialExpiry.Mode.NONE) return;
+
+        if (supportedTypes == null || supportedTypes.isEmpty()
+                || supportedTypes.contains(CredentialType.MSO_MDOC)) {
+            throw new IllegalArgumentException(
+                    "No expiry is not supported for schemas that support mdoc credentials");
         }
     }
 

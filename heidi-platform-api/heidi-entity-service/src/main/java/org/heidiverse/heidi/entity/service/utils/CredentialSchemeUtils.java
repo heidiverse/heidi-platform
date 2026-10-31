@@ -60,7 +60,8 @@ public class CredentialSchemeUtils {
                 credentialSchemeEntity.getSigningKeyIds(),
                 credentialSchemeEntity.getStatusListId(),
                 credentialSchemeEntity.getCredentialOfferType(),
-                credentialSchemeEntity.getIssuanceProfileId());
+                credentialSchemeEntity.getIssuanceProfileId(),
+                credentialSchemeEntity.getCredentialExpiry());
     }
 
     public static CredentialSchemeAttribute toCredentialSchemeAttribute(

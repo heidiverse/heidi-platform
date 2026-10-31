@@ -28,7 +28,7 @@
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <kotlin.version>2.4.20</kotlin.version>
         <kotlin.jvm.target>${java.version}</kotlin.jvm.target>
-        <kapunsdk.version>1.0.0-RC15</kapunsdk.version>
+        <kapunsdk.version>1.0.4-RC.2</kapunsdk.version>
         <heidi.signerinterface.version>0.2.4</heidi.signerinterface.version>
         <logbook.version>4.1.0</logbook.version>
         <springdoc.version>3.1.1</springdoc.version>

@@ -25,6 +25,25 @@ class SchemaMetadataService(
         require(supportedFormats.isNotEmpty()) {
             "Issuance schema '$identifier' version '$version' has no supported issuer credential format"
         }
+        val credentialExpiry = credentialExpiry(detail)
+        require(
+            credentialExpiry.mode == CredentialExpiryMode.DEFAULT ||
+                CredentialFormat.ZKP_VC !in supportedFormats,
+        ) {
+            "Credential expiry settings are not supported for ZKP credentials"
+        }
+        require(
+            credentialExpiry.mode != CredentialExpiryMode.CUSTOM ||
+                CredentialFormat.MSO_MDOC !in supportedFormats,
+        ) {
+            "Custom expiry settings are not supported for mdoc credentials"
+        }
+        require(
+            credentialExpiry.mode != CredentialExpiryMode.NONE ||
+                CredentialFormat.MSO_MDOC !in supportedFormats,
+        ) {
+            "Credentials with the mdoc format require an expiry"
+        }
         val vct = root.findString("vct") ?: "urn:heidi:$identifier:$version"
         val docType = detail.findString("doctype")
             ?: detail.findString("docType")
@@ -61,7 +80,20 @@ class SchemaMetadataService(
             attributeMetadata = attributeMetadata(detail),
             ocaFormat = ocaFormat,
             legacyOcaBundleFileName = legacyOcaBundleFileName,
+            credentialExpiry = credentialExpiry,
         )
+    }
+
+    private fun credentialExpiry(detail: JsonElement): CredentialExpiry {
+        val issuerSettings = (detail as? JsonObject)?.get("issuerSettings") as? JsonObject
+            ?: return CredentialExpiry.DEFAULT
+        val expiry = issuerSettings["credentialExpiry"] as? JsonObject
+            ?: return CredentialExpiry.DEFAULT
+        val mode = expiry["mode"]?.jsonPrimitive?.contentOrNull
+            ?.let { runCatching { CredentialExpiryMode.valueOf(it) }.getOrNull() }
+            ?: error("Credential schema has an invalid expiry mode")
+        val lifetimeDays = expiry["lifetimeDays"]?.jsonPrimitive?.longOrNull
+        return CredentialExpiry(mode, lifetimeDays)
     }
 
     private fun metadataUri(identifier: String, version: String, vct: String): String? {
@@ -226,6 +258,7 @@ class SchemaMetadataService(
         val ocaFormat: OcaFormat = OcaFormat.LEGACY,
         val legacyOcaBundleFileName: String? = null,
         val vctMetadataUri: String? = null,
+        val credentialExpiry: CredentialExpiry = CredentialExpiry.DEFAULT,
     )
 
     data class AttributeMetadata(

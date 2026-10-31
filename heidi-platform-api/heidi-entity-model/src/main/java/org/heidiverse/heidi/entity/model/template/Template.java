@@ -4,6 +4,7 @@
 package org.heidiverse.heidi.entity.model.template;
 
 import org.heidiverse.heidi.coordinator.model.oid4vci.CredentialOfferType;
+import org.heidiverse.heidi.entity.model.issuer.CredentialExpiry;
 
 import java.util.List;
 import java.util.Map;
@@ -44,10 +45,17 @@ public record Template(
             String doctype,
             String namespace,
             String vct,
-            CredentialOfferType credentialOfferType) {
+            CredentialOfferType credentialOfferType,
+            CredentialExpiry credentialExpiry) {
+
+        public IssuerSettings(String issuerKeyType, String doctype, String namespace, String vct,
+                CredentialOfferType credentialOfferType) {
+            this(issuerKeyType, doctype, namespace, vct, credentialOfferType,
+                    CredentialExpiry.defaultExpiry());
+        }
 
         public IssuerSettings(String issuerKeyType, String doctype, String namespace, String vct) {
-            this(issuerKeyType, doctype, namespace, vct, null);
+            this(issuerKeyType, doctype, namespace, vct, null, CredentialExpiry.defaultExpiry());
         }
     }
 

@@ -52,6 +52,7 @@ import { getDefaultValuesForSchema } from "@/lib/utils/credential-schemas";
 import { getLocalizedValue } from "@/lib/utils/localized";
 import type { CredentialSchemaForm } from "@/routes/_authenticated/credential-schemas/-components/schemas";
 import {
+  CredentialExpiryMode,
   CredentialOfferType,
   type CredentialSchema,
   IssuerKeyTypes,
@@ -162,11 +163,15 @@ export function AddCredentialSchemaDialog({
             supportedCredentialTypes: [SupportedCredentialTypes.SdJwt],
             signingKeyIds: {},
             credentialOfferType: CredentialOfferType.Value,
+            credentialExpiry: { mode: CredentialExpiryMode.Default },
             ...(isImport && {
               ...values.issuingSettings,
               issuerId,
               issuanceProfileId: selectedIssuanceProfile,
               defaultTrustSystem: undefined,
+              credentialExpiry: values.issuingSettings.credentialExpiry ?? {
+                mode: CredentialExpiryMode.Default,
+              },
             }),
           },
           ...(isImport && { templateId: values.templateId }),
@@ -221,6 +226,9 @@ export function AddCredentialSchemaDialog({
             credentialOfferType:
               template.issuerSettings.credentialOfferType ??
               CredentialOfferType.Value,
+            credentialExpiry: template.issuerSettings.credentialExpiry ?? {
+              mode: CredentialExpiryMode.Default,
+            },
           },
           templateId: values.templateId,
         },

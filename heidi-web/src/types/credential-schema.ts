@@ -77,6 +77,19 @@ export const CredentialOfferType = {
 export type CredentialOfferType =
   (typeof CredentialOfferType)[keyof typeof CredentialOfferType];
 
+export const CredentialExpiryMode = {
+  Default: "DEFAULT",
+  Custom: "CUSTOM",
+  None: "NONE",
+} as const;
+export type CredentialExpiryMode =
+  (typeof CredentialExpiryMode)[keyof typeof CredentialExpiryMode];
+
+export type CredentialExpiry = {
+  mode: CredentialExpiryMode;
+  lifetimeDays?: number | null;
+};
+
 export const FrontOverlayPositions = {
   BottomRight: "BottomRight",
   BottomLeft: "BottomLeft",
@@ -190,6 +203,7 @@ export type CredentialIssuerSettings = {
   signingKeyIds?: Partial<Record<TrustSystem, string | null>>;
   statusListId?: string | null;
   credentialOfferType: CredentialOfferType;
+  credentialExpiry: CredentialExpiry;
 };
 
 // For the GET /management/v1/credential-schemas/{id} endpoint

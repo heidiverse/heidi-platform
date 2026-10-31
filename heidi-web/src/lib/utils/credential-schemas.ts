@@ -8,6 +8,7 @@ import { argbToHex, hexToArgb } from "@/lib/utils/color";
 import { sortAttributes } from "@/lib/utils/sort-attributes";
 import type { CredentialSchemaForm } from "@/routes/_authenticated/credential-schemas/-components/schemas";
 import {
+  CredentialExpiryMode,
   CredentialOfferType,
   type CredentialSchema,
   type CredentialSchemaLite,
@@ -164,6 +165,7 @@ export function marshalCredentialSchema(
       statusListId: issuingSettings.statusListId || null,
       credentialOfferType:
         issuingSettings.credentialOfferType ?? CredentialOfferType.Value,
+      credentialExpiry: issuingSettings.credentialExpiry,
     },
     templateId: templateId || null,
   };
@@ -247,6 +249,9 @@ export function getDefaultValuesForSchema(
       statusListId: schema.issuerSettings.statusListId || undefined,
       credentialOfferType:
         schema.issuerSettings.credentialOfferType ?? CredentialOfferType.Value,
+      credentialExpiry: schema.issuerSettings.credentialExpiry ?? {
+        mode: CredentialExpiryMode.Default,
+      },
     },
     templateId: schema.templateId || "",
   };

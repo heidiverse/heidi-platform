@@ -27,10 +27,34 @@ public record IssuerSettings(
         Map<IssuerTrustSystem, String> signingKeyIds,
         UUID statusListId,
         CredentialOfferType credentialOfferType,
-        @NotBlank(message = "Issuance profile is required") String issuanceProfileId) {
+        @NotBlank(message = "Issuance profile is required") String issuanceProfileId,
+        CredentialExpiry credentialExpiry) {
 
     public IssuerSettings {
         credentialOfferType = credentialOfferType == null
                 ? CredentialOfferType.VALUE : credentialOfferType;
+        credentialExpiry = credentialExpiry == null
+                ? CredentialExpiry.defaultExpiry() : credentialExpiry;
+    }
+
+    public IssuerSettings(
+            int id,
+            IssuerKeyType issuerKeyType,
+            String doctype,
+            String namespace,
+            String vct,
+            Set<CredentialType> supportedCredentialTypes,
+            String issClaimOverride,
+            String kidOverride,
+            String bbsCredentialType,
+            IssuerTrustSystem defaultTrustSystem,
+            Map<IssuerTrustSystem, String> signingKeyIds,
+            UUID statusListId,
+            CredentialOfferType credentialOfferType,
+            String issuanceProfileId) {
+        this(id, issuerKeyType, doctype, namespace, vct, supportedCredentialTypes,
+                issClaimOverride, kidOverride, bbsCredentialType, defaultTrustSystem,
+                signingKeyIds, statusListId, credentialOfferType, issuanceProfileId,
+                CredentialExpiry.defaultExpiry());
     }
 }
