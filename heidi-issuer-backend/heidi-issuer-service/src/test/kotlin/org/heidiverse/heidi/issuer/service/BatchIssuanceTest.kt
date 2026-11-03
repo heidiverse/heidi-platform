@@ -25,6 +25,7 @@ import org.heidiverse.heidi.issuer.model.api.IssuerMetadata
 import org.heidiverse.heidi.issuer.model.entity.IssuanceSessionEntity
 import org.heidiverse.heidi.shared.signing.SigningKeyException
 import org.heidiverse.heidi.issuer.service.SchemaMetadataService.CredentialFormat
+import org.heidiverse.heidi.issuer.service.SchemaMetadataService.HolderBinding
 import org.heidiverse.heidi.issuer.service.SchemaMetadataService.SchemaMetadata
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -39,6 +40,8 @@ import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verify
 import org.mockito.ArgumentMatchers.any
 import org.springframework.web.client.RestClient
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.Base64
 import java.util.Date
@@ -50,6 +53,160 @@ class BatchIssuanceTest {
         const val PROFILE = "EUDI_ISSUANCE_2026_1"
     }
     private val snapshot = IssuerFlowSnapshot()
+
+    @Test
+    fun `claim bound metadata omits key binding and proof requirements`() {
+        val fixture = fixture(
+            holderBinding = HolderBinding.CLAIM_BASED,
+            supportedFormats = setOf(CredentialFormat.ZKP_VC, CredentialFormat.SD_JWT,
+                CredentialFormat.W3C_VCDM, CredentialFormat.MSO_MDOC),
+        )
+        `when`(fixture.bbsCredentialIssuer.isAvailable(
+            "local", "test", "1.0.0", null, PROFILE,
+        )).thenReturn(true)
+
+        val metadata = fixture.service.credentialMetadata("local", FlowVariant.C, "test", "1.0.0", PROFILE)
+        val json: JsonNode = ObjectMapper().valueToTree(metadata)
+        for (id in listOf("test-1.0.0-zkp-vc", "test-1.0.0-sd-jwt", "test-1.0.0-w3c-vcdm")) {
+            val configuration = json["credential_configurations_supported"][id]
+            assertFalse(configuration.has("cryptographic_binding_methods_supported"), id)
+            assertFalse(configuration.has("proof_types_supported"), id)
+        }
+        val mdoc = metadata.credentialConfigurationsSupported.getValue("test-1.0.0-mso-mdoc")
+        assertEquals(listOf("jwk"), mdoc.cryptographicBindingMethodsSupported)
+        assertTrue(mdoc.proofTypesSupported != null)
+    }
+
+    @Test
+    fun `claim bound bbs accepts no holder proof`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED,
+            supportedFormats = setOf(CredentialFormat.ZKP_VC))
+        `when`(fixture.bbsCredentialIssuer.issue(
+            fixture.data, "local", "urn:test", null, snapshot, TrustSystem.Default,
+        )).thenReturn("unbound-bbs")
+
+        val result = fixture.service.issue(fixture.accessToken,
+            """{"credential_configuration_id":"test-1.0.0-zkp-vc"}""", "Bearer", null, "POST")
+
+        assertEquals("unbound-bbs", result.body.credential)
+    }
+
+    @Test
+    fun `claim bound sd jwt accepts no holder proof`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED)
+        `when`(fixture.credentialIssuer.issueSdJwt(
+            fixture.data, "local", "https://issuer.example/local/c/test/1.0.0", "urn:test", null, snapshot,
+        )).thenReturn("unbound-sd-jwt")
+
+        val result = fixture.service.issue(fixture.accessToken,
+            """{"credential_configuration_id":"test-1.0.0-sd-jwt"}""", "Bearer", null, "POST")
+
+        assertEquals("unbound-sd-jwt", result.body.credential)
+    }
+
+    @Test
+    fun `claim bound bbs discards a supplied holder key`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED,
+            supportedFormats = setOf(CredentialFormat.ZKP_VC))
+        val key = ECKeyGenerator(com.nimbusds.jose.jwk.Curve.P_256).generate()
+        `when`(fixture.bbsCredentialIssuer.issue(
+            fixture.data, "local", "urn:test", null, snapshot, TrustSystem.Default,
+        )).thenReturn("unbound-bbs")
+
+        val result = fixture.service.issue(fixture.accessToken,
+            """{"credential_configuration_id":"test-1.0.0-zkp-vc","proof":{"jwt":"${proof(key)}"}}""",
+            "Bearer", null, "POST")
+
+        assertEquals("unbound-bbs", result.body.credential)
+    }
+
+    @Test
+    fun `claim bound batches keep their count without embedding keys`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED)
+        val keys = List(2) { ECKeyGenerator(com.nimbusds.jose.jwk.Curve.P_256).generate() }
+        `when`(fixture.credentialIssuer.issueSdJwt(
+            fixture.data, "local", "https://issuer.example/local/c/test/1.0.0", "urn:test", null, snapshot,
+        )).thenReturn("unbound-sd-jwt")
+
+        val result = fixture.service.issue(fixture.accessToken, batchRequest(keys), "Bearer", null, "POST")
+
+        assertEquals(listOf("unbound-sd-jwt", "unbound-sd-jwt"), result.body.credentials.map { it.credential })
+    }
+
+    @Test
+    fun `key bound issuance still requires a holder proof`() {
+        val fixture = fixture()
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            fixture.service.issue(fixture.accessToken,
+                """{"credential_configuration_id":"test-1.0.0-sd-jwt"}""", "Bearer", null, "POST")
+        }
+        assertEquals("A JWT proof is required", error.message)
+    }
+
+    @Test
+    fun `claim bound issuance validates optional proofs`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED)
+        val key = ECKeyGenerator(com.nimbusds.jose.jwk.Curve.P_256).generate()
+        val forged = tamper(proof(key))
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            fixture.service.issue(fixture.accessToken,
+                """{"credential_configuration_id":"test-1.0.0-sd-jwt","proof":{"jwt":"$forged"}}""",
+                "Bearer", null, "POST")
+        }
+        assertEquals("Invalid proof JWT signature", error.message)
+    }
+
+    @Test
+    fun `mdoc still requires a device key for a claim bound schema`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED,
+            supportedFormats = setOf(CredentialFormat.MSO_MDOC))
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            fixture.service.issue(fixture.accessToken,
+                """{"credential_configuration_id":"test-1.0.0-mso-mdoc"}""", "Bearer", null, "POST")
+        }
+        assertEquals("A JWT proof is required", error.message)
+    }
+
+    @Test
+    fun `a pinned key requirement survives a claim bound schema change`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED)
+        fixture.session.signingSnapshot = snapshot.copy(holderBinding = HolderBinding.REQUIRED).encode()
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            fixture.service.issue(fixture.accessToken,
+                """{"credential_configuration_id":"test-1.0.0-sd-jwt"}""", "Bearer", null, "POST")
+        }
+        assertEquals("A JWT proof is required", error.message)
+    }
+
+    @Test
+    fun `offer captures the schema holder binding policy`() {
+        val fixture = fixture(holderBinding = HolderBinding.CLAIM_BASED)
+
+        fixture.service.createOffer("local", FlowVariant.C, CredentialOfferRequest(fixture.processToken, null))
+
+        val saved = org.mockito.ArgumentCaptor.forClass(IssuanceSessionEntity::class.java)
+        verify(fixture.sessions, org.mockito.Mockito.atLeastOnce()).save(saved.capture())
+        assertEquals(HolderBinding.CLAIM_BASED, IssuerFlowSnapshot.decode(saved.value.signingSnapshot).holderBinding)
+    }
+
+    @Test
+    fun `issuance retains the offer binding policy after a schema change`() {
+        val fixture = fixture(supportedFormats = setOf(CredentialFormat.ZKP_VC))
+        val pinned = snapshot.copy(holderBinding = HolderBinding.CLAIM_BASED)
+        fixture.session.signingSnapshot = pinned.encode()
+        `when`(fixture.bbsCredentialIssuer.issue(
+            fixture.data, "local", "urn:test", null, pinned, TrustSystem.Default,
+        )).thenReturn("unbound-bbs")
+
+        val result = fixture.service.issue(fixture.accessToken,
+            """{"credential_configuration_id":"test-1.0.0-zkp-vc"}""", "Bearer", null, "POST")
+
+        assertEquals("unbound-bbs", result.body.credential)
+    }
 
     @Test
     fun `rejects an offer without an issuance profile`() {
@@ -106,7 +263,7 @@ class BatchIssuanceTest {
         assertTrue(saved.value.signingSnapshot != null)
         assertTrue(saved.value.signingExpiresAt.isAfter(saved.value.offerExpiresAt))
         verify(fixture.signingFlows).retain(
-            "local", saved.value.id, snapshot.copy(issuanceProfileId = PROFILE),
+            "local", saved.value.id, snapshot.copy(issuanceProfileId = PROFILE, holderBinding = HolderBinding.REQUIRED),
             saved.value.signingExpiresAt,
         )
     }
@@ -631,6 +788,7 @@ class BatchIssuanceTest {
         encryptionPolicy: CredentialEncryptionPolicy = CredentialEncryptionPolicy(),
         issuanceProfileId: String = PROFILE,
         includeProfile: Boolean = true,
+        holderBinding: HolderBinding = HolderBinding.REQUIRED,
     ): Fixture {
         val sessions = mock(IssuanceSessionRepository::class.java)
         val metadata = mock(SchemaMetadataService::class.java)
@@ -676,6 +834,7 @@ class BatchIssuanceTest {
                 maxBatchSize = serverBatchSize,
                 credentialDisplay = credentialDisplay,
                 namespace = namespace,
+                holderBinding = holderBinding,
             ),
         )
         val signing = IssuerProperties.IssuerSigning(

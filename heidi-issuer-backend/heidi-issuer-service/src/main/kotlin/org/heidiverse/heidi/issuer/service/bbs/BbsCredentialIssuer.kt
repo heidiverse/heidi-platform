@@ -87,13 +87,13 @@ class BbsCredentialIssuer(
             "issuerId" to requireNotNull(bbs.issuerId),
             "issuerKeyId" to requireNotNull(bbs.issuerKeyId),
             "credentialType" to credentialType,
-            "deviceBinding" to holder?.let {
-                mapOf(
-                    "x" to Base64.getEncoder().encodeToString(it.x.decode()),
-                    "y" to Base64.getEncoder().encodeToString(it.y.decode()),
-                )
-            },
         )
+        holder?.let {
+            input["deviceBinding"] = mapOf(
+                "x" to Base64.getEncoder().encodeToString(it.x.decode()),
+                "y" to Base64.getEncoder().encodeToString(it.y.decode()),
+            )
+        }
         val operation = provider.execute(
             ref,
             SigningOperationRequest(

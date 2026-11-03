@@ -17,6 +17,7 @@ data class IssuerFlowSnapshot(
     val operationSigning: IssuerProperties.IssuerSigning? = null,
     val operationConfiguration: JsonObject = JsonObject(emptyMap()),
     val encryption: CredentialEncryptionPolicy = CredentialEncryptionPolicy(),
+    val holderBinding: SchemaMetadataService.HolderBinding? = null,
 ) {
     fun encode(): String = Json.encodeToString(serializer(), this)
 

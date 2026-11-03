@@ -18,6 +18,7 @@ import org.heidiverse.heidi.issuer.model.TrustSystem
 import org.heidiverse.heidi.issuer.model.api.*
 import org.heidiverse.heidi.issuer.model.entity.IssuanceSessionEntity
 import org.heidiverse.heidi.issuer.service.SchemaMetadataService.CredentialFormat
+import org.heidiverse.heidi.issuer.service.SchemaMetadataService.HolderBinding
 import org.heidiverse.heidi.shared.oca.OcaFormat
 import org.heidiverse.heidi.issuer.service.bbs.BbsCredentialIssuer
 import org.kapunsdk.crypto.jwt.Jwt
@@ -142,7 +143,7 @@ class IssuanceService(
             metadata.supportedFormats,
             credentialEncryption.policyFor(issuerSlug, issuanceProfileId),
             issuanceProfileId,
-        )
+        ).copy(holderBinding = metadata.holderBinding)
         val now = Instant.now()
         val session = IssuanceSessionEntity().apply {
             signingSnapshot = snapshot.encode()
@@ -615,7 +616,6 @@ class IssuanceService(
             }
         val metadata = metadataService.resolve(session.credentialIdentifier, session.credentialVersion)
         val schemaData = resolvedData.withSchemaMetadata(metadata)
-        val holderProofs = extractAndVerifyHolderJwks(request, metadata.maxBatchSize)
         val trustSystem = session.trustSystem
             ?: org.heidiverse.heidi.issuer.model.TrustSystem.Default
         val requestedCredentialFormat = when (format) {
@@ -630,6 +630,13 @@ class IssuanceService(
         }
         val ocaUrl = ocaRenderUrl(metadata, properties.publicUrl, userAgent)
         val snapshot = IssuerFlowSnapshot.decode(session.signingSnapshot)
+        // Pin new offers; older snapshots inherit the schema's binding policy.
+        val holderBinding = if (requestedCredentialFormat == CredentialFormat.MSO_MDOC) {
+            HolderBinding.REQUIRED
+        } else {
+            snapshot.holderBinding ?: metadata.holderBinding
+        }
+        val holderProofs = extractAndVerifyHolderJwks(request, metadata.maxBatchSize, holderBinding)
         val defaultIssuerClaim = issuerUrl(session)
         val credentialIssuerClaim = metadata.issuerClaimOverride
             ?: if (requestedCredentialFormat == CredentialFormat.ZKP_VC) {
@@ -661,7 +668,7 @@ class IssuanceService(
                     session.issuerSlug,
                     metadata.docType,
                     metadata.namespace,
-                    holderJwk,
+                    requireNotNull(holderJwk) { "Mdoc issuance requires a holder key" },
                     snapshot,
                     trustSystem,
                     metadata.credentialExpiry,
@@ -783,9 +790,9 @@ class IssuanceService(
                     metadata.vct,
                     null,
                     null,
-                    listOf("jwk"),
+                    listOf("jwk").takeIf { metadata.holderBinding == HolderBinding.REQUIRED },
                     signingAlgorithms,
-                    proofTypes,
+                    proofTypes.takeIf { metadata.holderBinding == HolderBinding.REQUIRED },
                     null,
                     null,
                     metadata.vctMetadataUri,
@@ -817,9 +824,9 @@ class IssuanceService(
                     metadata.vct,
                     null,
                     null,
-                    listOf("zk_attest", "linked_secret"),
+                    listOf("zk_attest", "linked_secret").takeIf { metadata.holderBinding == HolderBinding.REQUIRED },
                     listOf("bbs-termwise-signature-2023"),
-                    proofTypes,
+                    proofTypes.takeIf { metadata.holderBinding == HolderBinding.REQUIRED },
                     null,
                     null,
                 ),
@@ -827,7 +834,7 @@ class IssuanceService(
         }
         if (CredentialFormat.W3C_VCDM in metadata.supportedFormats) {
             configurations[w3cConfigurationId(identifier, version)] = withCredentialMetadata(
-                w3cCredentialConfiguration(metadata.vct, signingAlgorithms),
+                w3cCredentialConfiguration(metadata.vct, signingAlgorithms, metadata.holderBinding),
             )
         }
         val requestEncryption = credentialEncryption.requestEncryptionMetadata(encryptionPolicy)
@@ -1005,22 +1012,28 @@ class IssuanceService(
     private fun extractAndVerifyHolderJwks(
         request: CredentialRequest,
         allowedBatchSize: Int,
+        holderBinding: HolderBinding,
     ): HolderProofs {
-        request.jwk?.let { return HolderProofs(listOf(it.toString()), batchRequest = false) }
         val singleProof = request.proof?.jwt
         val batchProofs = request.proofs?.jwt
         require(singleProof == null || batchProofs == null) { "proof and proofs cannot both be set" }
-        if (batchProofs != null) {
-            require(batchProofs.isNotEmpty()) { "At least one JWT proof is required" }
-            require(batchProofs.size <= allowedBatchSize) {
-                "Requested batch size ${batchProofs.size} exceeds the credential schema maximum $allowedBatchSize"
+        val proofs = when {
+            request.jwk != null -> HolderProofs(listOf(request.jwk.toString()), batchRequest = false)
+            batchProofs != null -> {
+                require(batchProofs.isNotEmpty()) { "At least one JWT proof is required" }
+                require(batchProofs.size <= allowedBatchSize) {
+                    "Requested batch size ${batchProofs.size} exceeds the credential schema maximum $allowedBatchSize"
+                }
+                HolderProofs(batchProofs.map(::verifyHolderProof), batchRequest = true)
             }
-            return HolderProofs(batchProofs.map(::verifyHolderProof), batchRequest = true)
+            singleProof != null -> HolderProofs(listOf(verifyHolderProof(singleProof)), batchRequest = false)
+            holderBinding == HolderBinding.CLAIM_BASED -> HolderProofs(listOf(null), batchRequest = false)
+            else -> throw IllegalArgumentException("A JWT proof is required")
         }
-        return HolderProofs(
-            listOf(verifyHolderProof(singleProof ?: throw IllegalArgumentException("A JWT proof is required"))),
-            batchRequest = false,
-        )
+        if (holderBinding == HolderBinding.REQUIRED) return proofs
+
+        // Keep optional proof validation and batch size without binding credentials to those keys.
+        return proofs.copy(jwks = proofs.jwks.map { null })
     }
 
     private fun verifyHolderProof(proof: String): String {
@@ -1106,7 +1119,7 @@ class IssuanceService(
     }
 }
 
-private data class HolderProofs(val jwks: List<String>, val batchRequest: Boolean)
+private data class HolderProofs(val jwks: List<String?>, val batchRequest: Boolean)
 
 private data class DecodedCredentialRequest(
     val body: String,
@@ -1171,14 +1184,16 @@ internal fun w3cCredentialConfiguration(
 internal fun w3cCredentialConfiguration(
     credentialType: String,
     signingAlgorithms: List<String>,
+    holderBinding: HolderBinding = HolderBinding.REQUIRED,
 ) = IssuerMetadata.CredentialConfiguration(
     "vc+sd-jwt",
     null,
     null,
     IssuerMetadata.CredentialDefinition(listOf("VerifiableCredential", credentialType)),
-    listOf("jwk"),
+    listOf("jwk").takeIf { holderBinding == HolderBinding.REQUIRED },
     signingAlgorithms,
-    IssuerMetadata.ProofTypesSupported(IssuerMetadata.JwtProofType(listOf("ES256"))),
+    IssuerMetadata.ProofTypesSupported(IssuerMetadata.JwtProofType(listOf("ES256")))
+        .takeIf { holderBinding == HolderBinding.REQUIRED },
     null,
     null,
 )

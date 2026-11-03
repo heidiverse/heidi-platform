@@ -3,6 +3,7 @@
 
 package org.heidiverse.heidi.issuer.service
 
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import org.heidiverse.heidi.issuer.model.api.IssuerMetadata
 import org.heidiverse.heidi.shared.oca.OcaFormat
@@ -81,7 +82,17 @@ class SchemaMetadataService(
             ocaFormat = ocaFormat,
             legacyOcaBundleFileName = legacyOcaBundleFileName,
             credentialExpiry = credentialExpiry,
+            holderBinding = holderBinding(detail),
         )
+    }
+
+    private fun holderBinding(detail: JsonElement): HolderBinding {
+        // Only issuer settings define binding; nested metadata may contain unrelated key types.
+        val settings = (detail as? JsonObject)?.get("issuerSettings") as? JsonObject
+            ?: return HolderBinding.REQUIRED
+        val keyType = (settings["issuerKeyType"] as? JsonPrimitive)?.contentOrNull
+
+        return if (keyType == CLAIM_BASED_KEY_TYPE) HolderBinding.CLAIM_BASED else HolderBinding.REQUIRED
     }
 
     private fun credentialExpiry(detail: JsonElement): CredentialExpiry {
@@ -233,6 +244,7 @@ class SchemaMetadataService(
     }
 
     companion object {
+        private const val CLAIM_BASED_KEY_TYPE = "NO_KEY_CLAIM_BINDING"
         private val OCA_URI = Regex("/oca/([^/?]+)\\.json(?:\\?.*)?$")
     }
 
@@ -241,6 +253,12 @@ class SchemaMetadataService(
         MSO_MDOC,
         ZKP_VC,
         W3C_VCDM,
+    }
+
+    @Serializable
+    enum class HolderBinding {
+        REQUIRED,
+        CLAIM_BASED,
     }
 
     data class SchemaMetadata(
@@ -259,6 +277,7 @@ class SchemaMetadataService(
         val legacyOcaBundleFileName: String? = null,
         val vctMetadataUri: String? = null,
         val credentialExpiry: CredentialExpiry = CredentialExpiry.DEFAULT,
+        val holderBinding: HolderBinding = HolderBinding.REQUIRED,
     )
 
     data class AttributeMetadata(

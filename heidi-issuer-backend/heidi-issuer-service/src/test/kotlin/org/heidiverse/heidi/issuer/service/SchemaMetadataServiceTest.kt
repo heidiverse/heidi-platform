@@ -4,6 +4,7 @@
 package org.heidiverse.heidi.issuer.service
 
 import org.heidiverse.heidi.issuer.service.SchemaMetadataService.CredentialFormat
+import org.heidiverse.heidi.issuer.service.SchemaMetadataService.HolderBinding
 import org.heidiverse.heidi.shared.oca.OcaFormat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -119,7 +120,39 @@ class SchemaMetadataServiceTest {
 
         assertEquals(setOf(CredentialFormat.W3C_VCDM, CredentialFormat.ZKP_VC), metadata.supportedFormats)
         assertEquals(1, metadata.maxBatchSize)
+        assertEquals(HolderBinding.REQUIRED, metadata.holderBinding)
         server.verify()
+    }
+
+    @Test
+    fun `honors claim based binding from issuer settings`() {
+        val metadata = resolveBinding(
+            """{"issuerSettings":{"issuerKeyType":"NO_KEY_CLAIM_BINDING","supportedCredentialTypes":["ZKP_VC"]}}""",
+        )
+
+        assertEquals(HolderBinding.CLAIM_BASED, metadata.holderBinding)
+    }
+
+    @Test
+    fun `ignores binding flags outside issuer settings`() {
+        val metadata = resolveBinding(
+            """{"issuerKeyType":"NO_KEY_CLAIM_BINDING","issuerSettings":{"issuerKeyType":"SOFTWARE_NO_AUTH","supportedCredentialTypes":["ZKP_VC"]},"attributes":[{"issuerKeyType":"NO_KEY_CLAIM_BINDING"}]}""",
+        )
+
+        assertEquals(HolderBinding.REQUIRED, metadata.holderBinding)
+    }
+
+    private fun resolveBinding(detail: String): SchemaMetadataService.SchemaMetadata {
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        val service = SchemaMetadataService(builder, IssuerProperties(platformInternalBaseUrl = "http://entity.test"))
+
+        server.expect(requestTo("http://entity.test/public/v2/schema/test/1.0.0"))
+            .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("http://entity.test/public/v2/schema/test/1.0.0/detail"))
+            .andRespond(withSuccess(detail, MediaType.APPLICATION_JSON))
+
+        return service.resolve("test", "1.0.0").also { server.verify() }
     }
 
     @Test
