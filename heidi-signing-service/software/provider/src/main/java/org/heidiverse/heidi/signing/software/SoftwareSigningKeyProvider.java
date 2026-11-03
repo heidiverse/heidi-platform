@@ -51,6 +51,7 @@ import org.heidiverse.heidi.shared.signing.SigningKeyUsage;
 import org.heidiverse.heidi.shared.signing.SigningContentKeyProvider;
 import org.heidiverse.heidi.shared.signing.SigningContentKeyRequest;
 import uniffi.heidi_signing.JoseKeyPair;
+import uniffi.heidi_signing.SigningException;
 import uniffi.heidi_signing.Store;
 import uniffi.heidi_signing.StoreObject;
 
@@ -299,7 +300,7 @@ public final class SoftwareSigningKeyProvider
         }
         try {
             return signer.sign(material.ref().uri(), message.clone());
-        } catch (RuntimeException exception) {
+        } catch (SigningException | RuntimeException exception) {
             throw new SigningKeyException("Could not sign with " + material.ref().uri(), exception);
         }
     }
@@ -322,7 +323,7 @@ public final class SoftwareSigningKeyProvider
         }
         try {
             return signer.signDigest(material.ref().uri(), digest.clone());
-        } catch (RuntimeException exception) {
+        } catch (SigningException | RuntimeException exception) {
             throw new SigningKeyException("Could not sign digest with " + material.ref().uri(), exception);
         }
     }

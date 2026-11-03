@@ -20,7 +20,7 @@ kotlin {
 uniffi {
 	bindgenFromGitTag(
 		"https://github.com/UbiqueInnovation/uniffi-kotlin-multiplatform-bindings.git",
-		"v1.2.1"
+		libs.versions.uniffi.bindgen.get()
 	)
 	generateFromLibrary()
 }

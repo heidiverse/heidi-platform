@@ -1660,7 +1660,7 @@ dependencies = [
 [[package]]
 name = "kapun-credential-core-rust"
 version = "0.1.0"
-source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.2#ebba6c558e66f319facbb9b6748155d711d06b41"
+source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.5#98ba722b216721d62875b19141abd2c213d1b847"
 dependencies = [
  "chrono",
  "kapun-util-rust",
@@ -1680,7 +1680,7 @@ dependencies = [
 [[package]]
 name = "kapun-dcql-rust"
 version = "0.1.0"
-source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.2#ebba6c558e66f319facbb9b6748155d711d06b41"
+source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.5#98ba722b216721d62875b19141abd2c213d1b847"
 dependencies = [
  "chrono",
  "jlc",
@@ -1694,7 +1694,7 @@ dependencies = [
 [[package]]
 name = "kapun-util-rust"
 version = "0.1.0"
-source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.2#ebba6c558e66f319facbb9b6748155d711d06b41"
+source = "git+https://github.com/KapunSDK/kapun-sdk.git?tag=v1.0.4-RC.5#98ba722b216721d62875b19141abd2c213d1b847"
 dependencies = [
  "base64 0.22.1",
  "chrono",
