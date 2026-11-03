@@ -182,6 +182,22 @@ class SigningProviderServiceTest {
     }
 
     @Test
+    void flushesOldDefaultBeforeSavingTheNewDefault() {
+        when(repository.findAllByTenantIdIsNullOrderByName()).thenReturn(List.of(global));
+        when(repository.save(any(SigningProviderEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createGlobal(new SigningProviderRequest(
+                "Software ECDH Provider", "http://software.example", null, true, "none"));
+
+        var order = org.mockito.Mockito.inOrder(repository);
+        order.verify(repository).save(global);
+        order.verify(repository).flush();
+        order.verify(repository).save(org.mockito.ArgumentMatchers.argThat(
+                provider -> provider != global && provider.isDefaultProvider()));
+    }
+
+    @Test
     void restoresManagedGlobalProviderAsDefaultAfterRestart() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();

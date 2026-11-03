@@ -421,6 +421,8 @@
     "pages.organisation.description": "Manage organisation profile, identities, and trust registries",
     "pages.organisation.lead": "This information will be displayed in the wallet when users interact with you.",
     "pages.organisation.regenerateCertificate": "Regenerate Certificate",
+    "pages.organisation.signingProviders.makeDefault": "Make this the default provider",
+    "pages.organisation.signingProviders.makeDefault.description": "When enabled, this provider replaces the current default in this scope.",
     "pages.organisation.title": "Organisation",
     "pages.organisation.toast.update.error": "Update was not successful.",
     "pages.organisation.toast.update.success": "Organisation updated.",

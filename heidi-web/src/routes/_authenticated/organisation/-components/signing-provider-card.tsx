@@ -4,9 +4,11 @@
 import { IconPlus, IconRefresh, IconServer, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { FormattedMessage } from "react-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   checkSigningProviderConnection,
@@ -156,6 +158,7 @@ export function SigningProviderCard({ tenantId }: { tenantId?: string }) {
   const [endpoint, setEndpoint] = useState("");
   const [bearerToken, setBearerToken] = useState("");
   const [authenticationMode, setAuthenticationMode] = useState("none");
+  const [defaultProvider, setDefaultProvider] = useState(false);
   const [connection, setConnection] = useState<Awaited<ReturnType<typeof checkSigningProviderConnection>> | null>(null);
   const clearConnection = () => setConnection(null);
 
@@ -169,6 +172,7 @@ export function SigningProviderCard({ tenantId }: { tenantId?: string }) {
       setEndpoint("");
       setBearerToken("");
       setAuthenticationMode("none");
+      setDefaultProvider(false);
       setConnection(null);
       toast.success("Signing provider created.");
     },
@@ -218,7 +222,7 @@ export function SigningProviderCard({ tenantId }: { tenantId?: string }) {
               : "Configure signing services available to every organisation."}
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}><IconPlus /> Add provider</Button>
+        <Button onClick={() => { setDefaultProvider(false); setOpen(true); }}><IconPlus /> Add provider</Button>
       </div>
       <div className="mt-6 space-y-3">
         {isPending && <p className="text-sm text-muted-foreground">Loading providers…</p>}
@@ -278,6 +282,21 @@ export function SigningProviderCard({ tenantId }: { tenantId?: string }) {
                 <option value="registered">Registered key</option>
               </select>
             </Field>
+            <Field orientation="horizontal">
+              <Checkbox
+                id="signing-provider-default"
+                checked={defaultProvider}
+                onCheckedChange={(checked) => setDefaultProvider(checked === true)}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="signing-provider-default">
+                  <FormattedMessage id="pages.organisation.signingProviders.makeDefault" />
+                </FieldLabel>
+                <p className="text-sm text-muted-foreground">
+                  <FormattedMessage id="pages.organisation.signingProviders.makeDefault.description" />
+                </p>
+              </FieldContent>
+            </Field>
             {authenticationMode === "bearer" && <Field><FieldLabel>Bearer token</FieldLabel><Input type="password" value={bearerToken} onChange={(event) => { setBearerToken(event.target.value); clearConnection(); }} /></Field>}
             {connection && (
               <div className="space-y-3 rounded-md border border-green-600/30 bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-200">
@@ -328,7 +347,7 @@ export function SigningProviderCard({ tenantId }: { tenantId?: string }) {
             >{check.isPending ? "Checking…" : "Check connection"}</Button>
             <Button
               disabled={!name || !endpoint || create.isPending || check.isPending}
-              onClick={() => create.mutate({ tenantId, provider: { name, endpoint, bearerToken, authenticationMode, defaultProvider: true } })}
+              onClick={() => create.mutate({ tenantId, provider: { name, endpoint, bearerToken, authenticationMode, defaultProvider } })}
             >Create provider</Button>
           </DialogFooter>
         </DialogContent>

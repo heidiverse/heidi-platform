@@ -513,6 +513,7 @@ public class SigningProviderService {
             provider.setDefaultProvider(false);
             repository.save(provider);
         });
+        repository.flush();
     }
 
     private SigningProviderResponse toResponse(SigningProviderEntity entity) {
