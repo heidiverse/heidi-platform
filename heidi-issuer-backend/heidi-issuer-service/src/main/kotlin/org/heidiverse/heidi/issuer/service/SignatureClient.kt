@@ -128,6 +128,9 @@ class SignatureClient(
 
     fun publicJwksFor(issuerSlug: String): List<String> = configurationClient.publicKeys(issuerSlug)
 
+    fun issuerDisplay(issuerSlug: String): List<IssuerConfigurationClient.IssuerDisplay> =
+        configurationClient.issuerDisplay(issuerSlug)
+
     fun swissTrustConfiguration(issuerSlug: String): IssuerConfigurationClient.SwissTrustConfiguration? =
         configurationClient.resolveSwissTrustConfiguration(issuerSlug)
 

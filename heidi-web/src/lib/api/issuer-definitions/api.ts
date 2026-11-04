@@ -21,8 +21,16 @@ interface RawIssuerDefinition extends Omit<
 function normalizeIssuerDefinition(
   issuer: RawIssuerDefinition,
 ): IssuerDefinition {
+  const issuerDisplay = issuer.issuerDisplay ?? Object.entries(issuer.displayName ?? {})
+    .filter(([locale, name]) => locale.trim() && name.trim())
+    .map(([locale, name]) => ({
+      locale,
+      name,
+      logoUri: issuer.logo || "",
+    }));
   return {
     ...issuer,
+    issuerDisplay,
     defaultTrustSystem: normalizeConfiguredTrustSystem(
       issuer.defaultTrustSystem,
     ),
@@ -154,6 +162,7 @@ export interface IssuerDefinition {
   logo: string;
   slug: string;
   displayName: DisplayName;
+  issuerDisplay: IssuerDisplayConfig[];
   tenantId?: string | null;
   defaultTrustSystem?: ConfiguredTrustSystem | null;
   trustSystems?: ConfiguredTrustSystem[];
@@ -161,6 +170,13 @@ export interface IssuerDefinition {
   customProfileName?: string | null;
 }
 export type DisplayName = Record<string, string>;
+
+export interface IssuerDisplayConfig {
+  locale: string;
+  name: string;
+  logoUri?: string | null;
+  logoAltText?: string | null;
+}
 
 export interface CredentialEncryptionPolicy {
   requestAlgValues: string[];

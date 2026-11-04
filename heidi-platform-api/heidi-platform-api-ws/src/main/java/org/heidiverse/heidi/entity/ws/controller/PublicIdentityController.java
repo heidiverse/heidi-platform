@@ -34,7 +34,11 @@ public class PublicIdentityController {
         var definitions = overview.issuerDefinitions().stream()
                 .map(issuer -> new IssuerDefinitionResponse(
                         issuer.id(), issuer.slug(), null, issuer.displayName(), issuer.tenantId(),
-                        issuer.defaultTrustSystem(), issuer.trustSystems(), issuer.customProfileName()))
+                        issuer.defaultTrustSystem(), issuer.trustSystems(), issuer.customProfileName(),
+                        issuer.issuerDisplay().stream()
+                                .map(display -> new org.heidiverse.heidi.entity.model.issuer.IssuerDisplayConfig(
+                                        display.locale(), display.name(), null, null))
+                                .toList()))
                 .toList();
 
         return ResponseEntity.ok(new IssuerOverview(definitions));

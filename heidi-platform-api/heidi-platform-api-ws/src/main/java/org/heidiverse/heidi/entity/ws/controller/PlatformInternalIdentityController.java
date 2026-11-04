@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.heidiverse.heidi.entity.model.issuer.FederationEntityConfigurationRequest;
 import org.heidiverse.heidi.entity.model.issuer.IdentityKeySlotConsumer;
 import org.heidiverse.heidi.entity.model.issuer.IssuerCredentialEncryption;
+import org.heidiverse.heidi.entity.model.issuer.IssuerDisplayConfig;
 import org.heidiverse.heidi.entity.model.issuer.IssuerOperationConfigurationResponse;
 import org.heidiverse.heidi.entity.model.issuer.IssuerSigningConfigurationInternal;
 import org.heidiverse.heidi.entity.model.issuer.IssuerTrustConfigurationResponse;
@@ -70,6 +71,13 @@ public class PlatformInternalIdentityController {
     @GetMapping("/{issuerSlug}/public-keys")
     public List<String> publicKeys(@PathVariable String issuerSlug) {
         return issuerService.publicKeys(issuerSlug);
+    }
+
+    @GetMapping("/{issuerSlug}/issuer-display")
+    public ResponseEntity<List<IssuerDisplayConfig>> issuerDisplay(@PathVariable String issuerSlug) {
+        return issuerService.getIssuerDisplay(issuerSlug)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{issuerSlug}/signing-configuration")

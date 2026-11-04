@@ -25,7 +25,26 @@ public record IssuerMetadata(
         @JsonProperty("batch_credential_issuance") BatchCredentialIssuance batchCredentialIssuance,
         @JsonProperty("credential_issuer_identity_trust_statement")
                 String credentialIssuerIdentityTrustStatement,
-        @JsonProperty("profile_version") String profileVersion) {
+        @JsonProperty("profile_version") String profileVersion,
+        @JsonProperty("display") List<IssuerDisplay> display) {
+
+    public IssuerMetadata(
+            String credentialIssuer,
+            List<String> authorizationServers,
+            String credentialEndpoint,
+            String deferredCredentialEndpoint,
+            String nonceEndpoint,
+            CredentialRequestEncryption credentialRequestEncryption,
+            CredentialResponseEncryption credentialResponseEncryption,
+            Map<String, CredentialConfiguration> credentialConfigurationsSupported,
+            BatchCredentialIssuance batchCredentialIssuance,
+            String credentialIssuerIdentityTrustStatement,
+            String profileVersion) {
+        this(credentialIssuer, authorizationServers, credentialEndpoint, deferredCredentialEndpoint,
+                nonceEndpoint, credentialRequestEncryption, credentialResponseEncryption,
+                credentialConfigurationsSupported, batchCredentialIssuance,
+                credentialIssuerIdentityTrustStatement, profileVersion, null);
+    }
 
     public IssuerMetadata(
             String credentialIssuer,
@@ -41,7 +60,7 @@ public record IssuerMetadata(
         this(credentialIssuer, authorizationServers, credentialEndpoint, deferredCredentialEndpoint,
                 nonceEndpoint, credentialRequestEncryption, credentialResponseEncryption,
                 credentialConfigurationsSupported, batchCredentialIssuance,
-                credentialIssuerIdentityTrustStatement, null);
+                credentialIssuerIdentityTrustStatement, null, null);
     }
 
     public IssuerMetadata withTrustStatements(
@@ -57,7 +76,8 @@ public record IssuerMetadata(
                 configurations,
                 batchCredentialIssuance,
                 identityStatement,
-                profileVersion);
+                profileVersion,
+                display);
     }
 
     public record JwkSet(List<Map<String, Object>> keys) {}
@@ -75,6 +95,17 @@ public record IssuerMetadata(
             @JsonProperty("encryption_required") boolean encryptionRequired) {}
 
     public record BatchCredentialIssuance(@JsonProperty("batch_size") int batchSize) {}
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IssuerDisplay(
+            String name,
+            String locale,
+            @JsonProperty("logo") IssuerLogo logo) {}
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IssuerLogo(
+            String uri,
+            @JsonProperty("alt_text") String altText) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CredentialConfiguration(

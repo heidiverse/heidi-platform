@@ -31,6 +31,24 @@ class IssuerConfigurationClient(builder: RestClient.Builder, private val propert
         return json.parseToJsonElement(body).jsonArray.map { it.jsonPrimitive.content }
     }
 
+    fun issuerDisplay(issuerSlug: String): List<IssuerDisplay> {
+        val body = client.get()
+            .uri("/internal/platform/v1/identities/{issuerSlug}/issuer-display", issuerSlug)
+            .retrieve().body(String::class.java)
+            ?: error("Issuer display response is empty")
+        return json.parseToJsonElement(body).jsonArray.mapNotNull { item ->
+            val display = item.jsonObject
+            val locale = display.string("locale") ?: return@mapNotNull null
+            val name = display.string("name") ?: return@mapNotNull null
+            IssuerDisplay(
+                locale = locale,
+                name = name,
+                logoUri = display.string("logoUri"),
+                logoAltText = display.string("logoAltText"),
+            )
+        }
+    }
+
     fun profileFor(
         issuerSlug: String,
         credentialIdentifier: String,
@@ -312,6 +330,13 @@ class IssuerConfigurationClient(builder: RestClient.Builder, private val propert
         string(name) ?: error("Issuer signing configuration is missing '$name'")
 
     data class StatusListReference(val uri: String, val indices: List<Int>)
+
+    data class IssuerDisplay(
+        val locale: String,
+        val name: String,
+        val logoUri: String?,
+        val logoAltText: String?,
+    )
 
     data class RuntimeSigningConfiguration(
         val trustSystem: TrustSystem,

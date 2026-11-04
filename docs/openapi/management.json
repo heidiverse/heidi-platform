@@ -6292,9 +6292,35 @@
           },
           "customProfileName" : {
             "type" : "string"
+          },
+          "issuerDisplay" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/IssuerDisplayConfig"
+            }
           }
         },
         "required" : [ "slug" ]
+      },
+      "IssuerDisplayConfig" : {
+        "type" : "object",
+        "properties" : {
+          "locale" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "name" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "logoUri" : {
+            "type" : "string"
+          },
+          "logoAltText" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "locale", "name" ]
       },
       "IssuerDefinitionResponse" : {
         "type" : "object",
@@ -6332,6 +6358,12 @@
           },
           "customProfileName" : {
             "type" : "string"
+          },
+          "issuerDisplay" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/IssuerDisplayConfig"
+            }
           }
         }
       },

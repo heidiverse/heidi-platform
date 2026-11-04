@@ -714,6 +714,7 @@ public class IssuerService {
             IssuerDefinitionRequest issuerDefinition, String tenantId) {
         validateSlotTrustSettings(issuerDefinition);
         var entity = IssuerDefinitionEntity.fromIssuerDefinition(issuerDefinition);
+        validateIssuerDisplay(entity.getIssuerDisplay());
         entity.setTenantId(tenantId);
         var saved = issuerDataService.save(entity);
         writeGrantsForAllIdentities();
@@ -722,11 +723,13 @@ public class IssuerService {
 
     public IssuerDefinitionResponse updateIssuer(int id, IssuerDefinitionRequest issuer) {
         validateSlotTrustSettings(issuer);
+        validateIssuerDisplay(issuer.issuerDisplay());
         var existing = issuerDataService.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Issuer not found for ID: " + id));
         existing.setSlug(issuer.slug());
         existing.setLogo(issuer.logo());
         existing.setDisplayName(issuer.displayName().toMapWithLanguageTagKeys());
+        if (issuer.issuerDisplay() != null) existing.setIssuerDisplay(issuer.issuerDisplay());
         existing.setDefaultTrustSystem(issuer.defaultTrustSystem());
         existing.setCustomProfileName(issuer.customProfileName());
         var saved = issuerDataService.save(existing);
@@ -1620,6 +1623,36 @@ public class IssuerService {
             throw new IllegalArgumentException(
                     "The default trust system must be active on the identity");
         }
+    }
+
+    private void validateIssuerDisplay(List<IssuerDisplayConfig> display) {
+        if (display == null) return;
+        var locales = new HashSet<String>();
+        for (var entry : display) {
+            if (entry == null || !hasText(entry.locale()) || !hasText(entry.name())) {
+                throw new IllegalArgumentException("Issuer display entries need a locale and name");
+            }
+            final String languageTag;
+            try {
+                languageTag = new Locale.Builder().setLanguageTag(entry.locale().trim())
+                        .build().toLanguageTag().toLowerCase(Locale.ROOT);
+            } catch (IllformedLocaleException exception) {
+                throw new IllegalArgumentException(
+                        "Issuer display locale must be a valid BCP 47 language tag", exception);
+            }
+            if (languageTag.equals("und")) {
+                throw new IllegalArgumentException(
+                        "Issuer display locale must include a language");
+            }
+            if (!locales.add(languageTag)) {
+                throw new IllegalArgumentException(
+                        "Issuer display may contain only one entry per locale");
+            }
+        }
+    }
+
+    public Optional<List<IssuerDisplayConfig>> getIssuerDisplay(String issuerSlug) {
+        return issuerDataService.findBySlug(issuerSlug).map(IssuerDefinitionEntity::getIssuerDisplay);
     }
 
     /** Gives the local profile usable issuer and verifier signing assignments. */

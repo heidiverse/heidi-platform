@@ -4,8 +4,10 @@
 package org.heidiverse.heidi.entity.model.issuer;
 
 import org.heidiverse.heidi.shared.localized.LocalizedValue;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
 import java.util.Set;
 
 public record IssuerDefinitionRequest(
@@ -14,9 +16,20 @@ public record IssuerDefinitionRequest(
         LocalizedValue<String> displayName,
         IssuerTrustSystem defaultTrustSystem,
         Set<IssuerTrustSystem> trustSystems,
-        String customProfileName) {
+        String customProfileName,
+        @Valid List<@Valid IssuerDisplayConfig> issuerDisplay) {
     public IssuerDefinitionRequest(
             String slug, String logo, LocalizedValue<String> displayName) {
-        this(slug, logo, displayName, null, null, null);
+        this(slug, logo, displayName, null, null, null, null);
+    }
+
+    public IssuerDefinitionRequest(
+            String slug,
+            String logo,
+            LocalizedValue<String> displayName,
+            IssuerTrustSystem defaultTrustSystem,
+            Set<IssuerTrustSystem> trustSystems,
+            String customProfileName) {
+        this(slug, logo, displayName, defaultTrustSystem, trustSystems, customProfileName, null);
     }
 }

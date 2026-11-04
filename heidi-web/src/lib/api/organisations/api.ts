@@ -74,6 +74,7 @@ export async function createOrganisation(data: Omit<Organisation, "revoked">) {
   const issuerDefinition = await createIssuerDefinition({
     tenantId: data.tenantId,
     displayName: { [settings.defaultLanguage]: data.displayName },
+    issuerDisplay: [{ locale: settings.defaultLanguage, name: data.displayName }],
     logo: "",
     slug: data.tenantId,
   });

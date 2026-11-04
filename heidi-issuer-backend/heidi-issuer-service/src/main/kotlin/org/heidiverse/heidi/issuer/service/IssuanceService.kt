@@ -841,6 +841,20 @@ class IssuanceService(
         val responseEncryption = requestEncryption?.let {
             credentialEncryption.responseEncryptionMetadata(encryptionPolicy)
         }
+        val issuerDisplay = signatureClient.issuerDisplay(issuerSlug).orEmpty()
+            .map { display ->
+                IssuerMetadata.IssuerDisplay(
+                    display.name,
+                    display.locale,
+                    display.logoUri?.takeIf { it.isNotBlank() }?.let { logoUri ->
+                        IssuerMetadata.IssuerLogo(
+                            logoUri,
+                            display.logoAltText?.takeIf { it.isNotBlank() },
+                        )
+                    },
+                )
+            }
+            .takeIf { it.isNotEmpty() }
         return IssuerMetadata(
             base,
             listOf(base),
@@ -854,6 +868,7 @@ class IssuanceService(
                 ?.let { IssuerMetadata.BatchCredentialIssuance(it) },
             null,
             IssuanceProfilePolicy.metadataVersion(issuanceProfileId),
+            issuerDisplay,
         )
     }
 

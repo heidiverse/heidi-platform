@@ -292,6 +292,7 @@ export function IdentitySetupDialog({
         logo: "",
         slug: "",
         displayName: { [fallbackLanguage]: name.trim() },
+        issuerDisplay: [{ locale: fallbackLanguage, name: name.trim() }],
         defaultTrustSystem: trust,
         trustSystems: [trust],
         customProfileName: customProfileName.trim() || null,

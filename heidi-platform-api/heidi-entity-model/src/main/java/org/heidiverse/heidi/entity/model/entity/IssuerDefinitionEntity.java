@@ -7,6 +7,7 @@ import org.heidiverse.heidi.shared.localized.LocalizedValue;
 import org.heidiverse.heidi.entity.model.issuer.IssuerCredentialEncryption;
 import org.heidiverse.heidi.entity.model.issuer.IssuerDefinitionRequest;
 import org.heidiverse.heidi.entity.model.issuer.IssuerDefinitionResponse;
+import org.heidiverse.heidi.entity.model.issuer.IssuerDisplayConfig;
 import org.heidiverse.heidi.entity.model.issuer.IssuerFederation;
 import org.heidiverse.heidi.entity.model.issuer.IssuerTrustSystem;
 
@@ -78,6 +79,11 @@ public class IssuerDefinitionEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private IssuerFederation federation;
 
+    /** Localized OID4VCI issuer display metadata. */
+    @Column(name = "issuer_display", columnDefinition = "jsonb", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
+    private List<IssuerDisplayConfig> issuerDisplay = new ArrayList<>();
+
     public boolean isDeleted() {
         return deleted;
     }
@@ -143,6 +149,15 @@ public class IssuerDefinitionEntity {
         this.federation = federation;
     }
 
+    public List<IssuerDisplayConfig> getIssuerDisplay() {
+        return issuerDisplay == null ? List.of() : issuerDisplay;
+    }
+
+    public void setIssuerDisplay(List<IssuerDisplayConfig> issuerDisplay) {
+        this.issuerDisplay = issuerDisplay == null
+                ? new ArrayList<>() : new ArrayList<>(issuerDisplay);
+    }
+
     public IssuerTrustSystem getDefaultTrustSystem() { return defaultTrustSystem; }
 
     public void setDefaultTrustSystem(IssuerTrustSystem defaultTrustSystem) {
@@ -196,7 +211,8 @@ public class IssuerDefinitionEntity {
                 this.tenantId,
                 this.getDefaultTrustSystem(),
                 trustSystems == null ? Set.of() : Set.copyOf(trustSystems),
-                this.customProfileName);
+                this.customProfileName,
+                this.getIssuerDisplay());
     }
 
     /** Convert DTO to Entity */
@@ -205,8 +221,23 @@ public class IssuerDefinitionEntity {
         entity.setLogo(issuer.logo());
         entity.setSlug(issuer.slug());
         entity.setDisplayName(issuer.displayName().toMapWithLanguageTagKeys());
+        entity.setIssuerDisplay(issuer.issuerDisplay() == null
+                ? fromLegacyDisplay(issuer.displayName(), issuer.logo())
+                : issuer.issuerDisplay());
         entity.setDefaultTrustSystem(issuer.defaultTrustSystem());
         entity.setCustomProfileName(issuer.customProfileName());
         return entity;
+    }
+
+    private static List<IssuerDisplayConfig> fromLegacyDisplay(
+            LocalizedValue<String> displayName, String logo) {
+        if (displayName == null || displayName.toMapWithLanguageTagKeys() == null) return List.of();
+        var logoUri = logo == null || logo.isBlank() ? null : logo;
+        return displayName.toMapWithLanguageTagKeys().entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isBlank())
+                .map(entry -> new IssuerDisplayConfig(
+                        entry.getKey(), entry.getValue(), logoUri, null))
+                .toList();
     }
 }
