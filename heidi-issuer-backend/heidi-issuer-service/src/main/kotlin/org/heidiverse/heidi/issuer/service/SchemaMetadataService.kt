@@ -34,12 +34,6 @@ class SchemaMetadataService(
             "Credential expiry settings are not supported for ZKP credentials"
         }
         require(
-            credentialExpiry.mode != CredentialExpiryMode.CUSTOM ||
-                CredentialFormat.MSO_MDOC !in supportedFormats,
-        ) {
-            "Custom expiry settings are not supported for mdoc credentials"
-        }
-        require(
             credentialExpiry.mode != CredentialExpiryMode.NONE ||
                 CredentialFormat.MSO_MDOC !in supportedFormats,
         ) {

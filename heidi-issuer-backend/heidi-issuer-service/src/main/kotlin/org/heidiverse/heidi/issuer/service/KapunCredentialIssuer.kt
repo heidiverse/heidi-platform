@@ -107,10 +107,20 @@ class KapunCredentialIssuer(
         require(certificates.isNotEmpty()) {
             "A certificate chain is required for mdoc issuer '$issuerSlug'"
         }
-        require(credentialExpiry.mode == CredentialExpiryMode.DEFAULT) {
-            "mdoc credentials require the issuer default expiry"
+        val mdoc = when (credentialExpiry.mode) {
+            CredentialExpiryMode.DEFAULT -> Mdoc.create(
+                propertiesValue, signer, docType, certificates, holderValue,
+            )
+            CredentialExpiryMode.CUSTOM -> Mdoc.create(
+                propertiesValue,
+                signer,
+                docType,
+                certificates,
+                holderValue,
+                requireNotNull(credentialExpiry.lifetimeDays).toULong(),
+            )
+            CredentialExpiryMode.NONE -> error("mdoc credentials require an expiry")
         }
-        val mdoc = Mdoc.create(propertiesValue, signer, docType, certificates, holderValue)
         return mdoc
             .getOrThrow()
             .mdoc

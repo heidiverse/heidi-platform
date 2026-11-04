@@ -166,17 +166,6 @@ export function createCredentialSchemaFormSchema(
         path: ["issuingSettings", "credentialExpiry", "mode"],
       });
     }
-    if (mdocSupported && credentialExpiry.mode === CredentialExpiryMode.Custom) {
-      ctx.issues.push({
-        code: "custom",
-        message: intl.$t({
-          id: "credentialSchema.validation.expiryMdocCustomUnsupported",
-          defaultMessage: "Use the issuer default for mdoc credentials",
-        }),
-        input: credentialExpiry,
-        path: ["issuingSettings", "credentialExpiry", "mode"],
-      });
-    }
   });
 
   const generalCredentialSchema = z.object({

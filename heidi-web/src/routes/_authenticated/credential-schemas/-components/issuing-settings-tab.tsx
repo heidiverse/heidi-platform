@@ -432,7 +432,7 @@ export const IssuingSettingsTab = withForm({
                             </SelectItem>
                             <SelectItem
                               value={CredentialExpiryMode.Custom}
-                              disabled={zkpSupported || mdocSupported}
+                              disabled={zkpSupported}
                             >
                               <FormattedMessage
                                 id="issuingSettings.credentialExpiry.custom"
@@ -502,15 +502,14 @@ export const IssuingSettingsTab = withForm({
                   }}
                 </form.AppField>
               )}
-              {((mdocSupported && credentialExpiry.mode !== CredentialExpiryMode.Default) ||
-                (zkpSupported && credentialExpiry.mode !== CredentialExpiryMode.Default)) && (
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
-                    <FormattedMessage
-                      id="issuingSettings.credentialExpiry.mdocWarning"
-                      defaultMessage="Custom expiry is not configurable for ZKP or mdoc credentials; mdoc credentials require expiry. Remove those formats or use the issuer default."
-                    />
-                  </p>
-                )}
+              {zkpSupported && credentialExpiry.mode !== CredentialExpiryMode.Default && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  <FormattedMessage
+                    id="issuingSettings.credentialExpiry.zkpWarning"
+                    defaultMessage="Custom expiry is not configurable for ZKP credentials. Remove that format or use the issuer default."
+                  />
+                </p>
+              )}
               <Collapsible
                 defaultOpen={false}
                 className="group/profile border-t pt-2"

@@ -1052,11 +1052,9 @@ public class CredentialSchemeService {
         var supportedTypes = settings.supportedCredentialTypes();
         if (settings.credentialExpiry().mode() != CredentialExpiry.Mode.DEFAULT
                 && (supportedTypes == null || supportedTypes.isEmpty()
-                        || supportedTypes.contains(CredentialType.ZKP_VC)
-                        || (settings.credentialExpiry().mode() == CredentialExpiry.Mode.CUSTOM
-                                && supportedTypes.contains(CredentialType.MSO_MDOC)))) {
+                        || supportedTypes.contains(CredentialType.ZKP_VC))) {
             throw new IllegalArgumentException(
-                    "Custom expiry settings are not supported for schemas that support ZKP or mdoc credentials");
+                    "Custom expiry settings are not supported for schemas that support ZKP credentials");
         }
         if (settings.credentialExpiry().mode() != CredentialExpiry.Mode.NONE) return;
 
