@@ -96,6 +96,11 @@
                                 </implementation>
                             </pluginExtension>
                         </pluginExtensions>
+                        <container>
+                            <jvmFlags>
+                                <jvmFlag>-XX:-UseBASE64Intrinsics</jvmFlag>
+                            </jvmFlags>
+                        </container>
                     </configuration>
                 </plugin>
             </plugins>
