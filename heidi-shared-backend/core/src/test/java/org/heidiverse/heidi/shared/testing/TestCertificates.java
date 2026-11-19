@@ -128,6 +128,44 @@ public final class TestCertificates {
     }
 
     /**
+     * An intermediate CA ({@code pathLen 0}) issued by {@code parent}, valid from yesterday for a
+     * year. Unlike {@link #ca(String)} it is not self-signed.
+     */
+    public static Ca intermediate(final Ca parent, final String commonName) throws Exception {
+        final var now = Instant.now();
+        final var keyPair = ecKeyPair();
+        final var extensions = new JcaX509ExtensionUtils();
+        final var builder =
+                new JcaX509v3CertificateBuilder(
+                        new X500Name(parent.certificate().getSubjectX500Principal().getName()),
+                        new BigInteger(64, new SecureRandom()),
+                        Date.from(now.minus(1, ChronoUnit.DAYS)),
+                        Date.from(now.plus(365, ChronoUnit.DAYS)),
+                        new X500Name("CN=" + commonName),
+                        keyPair.getPublic());
+        builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(0));
+        builder.addExtension(
+                Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
+        builder.addExtension(
+                Extension.subjectKeyIdentifier,
+                false,
+                extensions.createSubjectKeyIdentifier(keyPair.getPublic()));
+        builder.addExtension(
+                Extension.authorityKeyIdentifier,
+                false,
+                extensions.createAuthorityKeyIdentifier(parent.certificate()));
+
+        final var signer =
+                new JcaContentSignerBuilder("SHA256WITHECDSA")
+                        .build(parent.keyPair().getPrivate());
+        final var certificate =
+                new JcaX509CertificateConverter()
+                        .setProvider(BC)
+                        .getCertificate(builder.build(signer));
+        return new Ca(commonName, keyPair, certificate);
+    }
+
+    /**
      * Signs {@code subjectPublicKey} with {@code ca}, optionally carrying DNS subject alternative
      * names, and returns the leaf together with the encoded leaf-to-root chain.
      */

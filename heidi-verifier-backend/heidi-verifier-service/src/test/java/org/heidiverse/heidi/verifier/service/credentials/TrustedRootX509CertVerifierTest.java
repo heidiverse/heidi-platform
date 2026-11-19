@@ -106,6 +106,60 @@ class TrustedRootX509CertVerifierTest {
         assertFalse(verifier.validCertChain(forgedChain));
     }
 
+    /**
+     * Ecosystem trusted lists (e.g. the German PID-provider list) publish the issuing CA, which is
+     * itself issued by an offline root, and HAIP leaves the anchor out of {@code x5c}. The
+     * configured anchor therefore need not be self-signed.
+     */
+    @Test
+    void acceptsALeafIssuedByATrustedIntermediateAnchor() throws Exception {
+        final var root = TestCertificates.ca(ROOT_CN);
+        final var issuingCa = TestCertificates.intermediate(root, "heidi-test-issuing-ca");
+        final var verifier = new TrustedRootX509CertVerifier(List.of(issuingCa.certificate()));
+
+        assertTrue(verifier.validCertChain(List.of(chainUnder(issuingCa).getFirst())));
+    }
+
+    @Test
+    void acceptsAChainThatEndsInATrustedIntermediateAnchor() throws Exception {
+        final var root = TestCertificates.ca(ROOT_CN);
+        final var issuingCa = TestCertificates.intermediate(root, "heidi-test-issuing-ca");
+        final var verifier = new TrustedRootX509CertVerifier(List.of(issuingCa.certificate()));
+
+        assertTrue(verifier.validCertChain(chainUnder(issuingCa)));
+    }
+
+    @Test
+    void acceptsAChainThroughAPresentedIntermediateUpToATrustedRoot() throws Exception {
+        final var root = TestCertificates.ca(ROOT_CN);
+        final var issuingCa = TestCertificates.intermediate(root, "heidi-test-issuing-ca");
+        final var verifier = new TrustedRootX509CertVerifier(List.of(root.certificate()));
+
+        final var leaf = chainUnder(issuingCa).getFirst();
+
+        assertTrue(verifier.validCertChain(List.of(leaf, issuingCa.certificate())));
+    }
+
+    @Test
+    void rejectsALeafForgingATrustedIntermediateAnchorsName() throws Exception {
+        final var root = TestCertificates.ca(ROOT_CN);
+        final var trusted = TestCertificates.intermediate(root, "heidi-test-issuing-ca");
+        final var impostor = TestCertificates.ca("heidi-test-issuing-ca"); // same DN, other key
+        final var verifier = new TrustedRootX509CertVerifier(List.of(trusted.certificate()));
+
+        assertFalse(verifier.validCertChain(List.of(chainUnder(impostor).getFirst())));
+    }
+
+    @Test
+    void throwsWhenNoAnchorsAreConfigured() throws Exception {
+        final var ca = TestCertificates.ca(ROOT_CN);
+        final var verifier = new TrustedRootX509CertVerifier(List.of());
+
+        assertThrows(
+                InvalidCertChainException.class,
+                () -> verifier.validCertChain(chainUnder(ca)));
+    }
+
     @Test
     void picksTheMatchingRootOutOfSeveralConfiguredRoots() throws Exception {
         final var other = TestCertificates.ca("unrelated-root");
