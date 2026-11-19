@@ -1,9 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  IconLoader2,
+  IconPencil,
+  IconTrash,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { FormattedMessage, useIntl } from "react-intl";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -17,6 +23,7 @@ import {
   type IssuerDisplayConfig,
   updateIssuerDefinition,
 } from "@/lib/api/issuer-definitions/api";
+import { compressImage } from "@/lib/compress";
 import { DEFAULT_LOCALE } from "@/lib/constants";
 
 export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallbackLanguage = DEFAULT_LOCALE, onDeleted }: {
@@ -47,9 +54,13 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
   const [issuerDisplay, setIssuerDisplay] = useState<IssuerDisplayConfig[]>(
     issuerDisplayDefaults,
   );
+  const [newDisplayLocale, setNewDisplayLocale] = useState("");
+  const [displayLocaleError, setDisplayLocaleError] = useState(false);
   const [selectedDisplayLocale, setSelectedDisplayLocale] = useState(
     issuerDisplayDefaults[0]?.locale ?? fallbackLanguage,
   );
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoFileInput = useRef<HTMLInputElement>(null);
   const save = useMutation({
     mutationFn: () => updateIssuerDefinition({
       ...identity,
@@ -80,6 +91,11 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
   const selectedDisplay = issuerDisplay.find(
     (entry) => entry.locale === selectedDisplayLocale,
   );
+  const isUploadedLogo = selectedDisplay?.logoUri?.startsWith("data:image/") ?? false;
+  const displayLocales = Array.from(new Set([
+    ...contentLanguages,
+    ...issuerDisplay.map((entry) => entry.locale),
+  ]));
 
   function toggleDisplayLocale(locale: string) {
     const existing = issuerDisplay.some((entry) => entry.locale === locale);
@@ -113,6 +129,70 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
     )));
   }
 
+  function addDisplayLocale() {
+    let locale: string | undefined;
+    try {
+      locale = Intl.getCanonicalLocales(newDisplayLocale.trim())[0];
+    } catch {
+      locale = undefined;
+    }
+    if (!locale || locale === "und") {
+      setDisplayLocaleError(true);
+      return;
+    }
+
+    const existing = issuerDisplay.find((entry) => {
+      try {
+        return Intl.getCanonicalLocales(entry.locale.trim())[0] === locale;
+      } catch {
+        return entry.locale === locale;
+      }
+    });
+    if (existing) {
+      setSelectedDisplayLocale(existing.locale);
+    } else {
+      setIssuerDisplay((current) => [
+        ...current,
+        { locale, name: "", logoUri: identity.logo || "", logoAltText: "" },
+      ]);
+      setSelectedDisplayLocale(locale);
+    }
+    setNewDisplayLocale("");
+    setDisplayLocaleError(false);
+  }
+
+  async function uploadDisplayLogo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    const locale = selectedDisplay?.locale;
+    if (!file || !locale) return;
+
+    setLogoUploading(true);
+    try {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Unable to read image"));
+        reader.onload = () => typeof reader.result === "string"
+          ? resolve(reader.result)
+          : reject(new Error("Unable to read image"));
+        reader.readAsDataURL(file);
+      });
+      const logoUri = await compressImage({
+        fileName: file.name,
+        preview: imageData,
+        value: imageData,
+      });
+      updateDisplayLocale(locale, { logoUri });
+    } catch {
+      toast.error($t({
+        id: "identity.actions.issuerDisplay.logoUploadError",
+        defaultMessage: "Could not read or compress this image.",
+      }));
+    } finally {
+      setLogoUploading(false);
+      event.target.value = "";
+    }
+  }
+
   return <>
     <div className="mb-4 flex justify-end gap-2">
       <Button variant="outline" onClick={() => setOpen(true)}><IconPencil /> <FormattedMessage id="identity.actions.edit" /></Button>
@@ -125,7 +205,7 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
       </AlertDialog>
     </div>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle><FormattedMessage id="identity.actions.edit" /></DialogTitle><DialogDescription><FormattedMessage id="identity.actions.edit.description" /></DialogDescription></DialogHeader>
         <Field><FieldLabel htmlFor="identity-slug"><FormattedMessage id="common.slug" /></FieldLabel><Input id="identity-slug" value={slug} onChange={(event) => setSlug(event.target.value)} /></Field>
         {contentLanguages.map((locale) => <Field key={locale}>
@@ -138,7 +218,7 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
             <p className="text-sm text-muted-foreground"><FormattedMessage id="identity.actions.issuerDisplay.description" /></p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {contentLanguages.map((locale) => {
+            {displayLocales.map((locale) => {
               const configured = issuerDisplay.some((entry) => entry.locale === locale);
               const selected = selectedDisplayLocale === locale && configured;
               return <div key={locale} className="inline-flex items-center gap-1">
@@ -146,7 +226,7 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
                   type="button"
                   size="default"
                   variant={selected ? "default" : configured ? "secondary" : "outline"}
-                  className="h-7 rounded-full px-2 text-xs"
+                  className="h-8 px-3 rounded-full"
                   aria-pressed={selected}
                   onClick={() => configured
                     ? setSelectedDisplayLocale(locale)
@@ -170,6 +250,37 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
               </div>;
             })}
           </div>
+          <div className="flex flex-wrap items-start gap-2">
+            <Input
+              aria-label={$t({
+                id: "identity.actions.issuerDisplay.languagePlaceholder",
+                defaultMessage: "Language tag, for example fr-CH",
+              })}
+              value={newDisplayLocale}
+              placeholder="fr-CH"
+              valueValid={!displayLocaleError}
+              onChange={(event) => {
+                setNewDisplayLocale(event.target.value);
+                setDisplayLocaleError(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addDisplayLocale();
+                }
+              }}
+              className="min-w-40 flex-1"
+            />
+            <Button type="button" variant="outline" disabled={!newDisplayLocale.trim()} onClick={addDisplayLocale}>
+              <FormattedMessage id="identity.actions.issuerDisplay.addLanguage" defaultMessage="Add language" />
+            </Button>
+          </div>
+          {displayLocaleError && <p className="text-sm text-destructive" role="alert">
+            <FormattedMessage
+              id="identity.actions.issuerDisplay.invalidLanguage"
+              defaultMessage="Enter a valid BCP 47 language tag, such as fr-CH."
+            />
+          </p>}
           {selectedDisplay && <>
             <Field>
               <FieldLabel htmlFor="identity-issuer-display-name"><FormattedMessage id="identity.actions.issuerDisplay.name" /></FieldLabel>
@@ -184,9 +295,61 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
               <FieldLabel htmlFor="identity-issuer-display-logo"><FormattedMessage id="identity.actions.issuerDisplay.logoUri" /></FieldLabel>
               <Input
                 id="identity-issuer-display-logo"
-                value={selectedDisplay.logoUri ?? ""}
+                value={isUploadedLogo ? "" : selectedDisplay.logoUri ?? ""}
+                placeholder={isUploadedLogo ? $t({
+                  id: "identity.actions.issuerDisplay.uploadedLogo",
+                  defaultMessage: "Uploaded image",
+                }) : undefined}
                 onChange={(event) => updateDisplayLocale(selectedDisplay.locale, { logoUri: event.target.value })}
               />
+              <FieldDescription>
+                <FormattedMessage
+                  id={isUploadedLogo
+                    ? "identity.actions.issuerDisplay.uploadedLogoDescription"
+                    : "identity.actions.issuerDisplay.logoUriDescription"}
+                  defaultMessage={isUploadedLogo
+                    ? "An image is uploaded for this locale. Upload another image or remove it to enter a URI."
+                    : "Enter a URI or upload an image. Uploaded images are compressed and stored with this identity."}
+                />
+              </FieldDescription>
+              <input
+                ref={logoFileInput}
+                id="identity-issuer-display-logo-file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                disabled={logoUploading}
+                onChange={uploadDisplayLogo}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={logoUploading}
+                  onClick={() => logoFileInput.current?.click()}
+                >
+                  {logoUploading ? <IconLoader2 className="animate-spin" /> : <IconUpload />}
+                  <FormattedMessage
+                    id={logoUploading
+                      ? "identity.actions.issuerDisplay.logoUploading"
+                      : "identity.actions.issuerDisplay.logoUpload"}
+                    defaultMessage={logoUploading ? "Compressing image…" : "Upload image"}
+                  />
+                </Button>
+                {selectedDisplay.logoUri && <img
+                  src={selectedDisplay.logoUri}
+                  alt={selectedDisplay.logoAltText || selectedDisplay.name}
+                  className="max-h-20 max-w-32 rounded border object-contain p-1"
+                />}
+                {isUploadedLogo && <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => updateDisplayLocale(selectedDisplay.locale, { logoUri: "" })}
+                >
+                  <IconX />
+                  <FormattedMessage id="common.remove" />
+                </Button>}
+              </div>
             </Field>
             <Field>
               <FieldLabel htmlFor="identity-issuer-display-logo-alt"><FormattedMessage id="identity.actions.issuerDisplay.logoAltText" /></FieldLabel>
@@ -203,7 +366,7 @@ export function IdentityActions({ identity, languages = [DEFAULT_LOCALE], fallba
           <Input id="identity-custom-profile-name" value={customProfileName} onChange={(event) => setCustomProfileName(event.target.value)} />
           <FieldDescription><FormattedMessage id="identity.actions.customProfileName.description" /></FieldDescription>
         </Field>
-        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}><FormattedMessage id="common.cancel" /></Button><Button disabled={!slug.trim() || !hasName || !issuerDisplayValid || save.isPending} onClick={() => save.mutate()}><FormattedMessage id="common.save" /></Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}><FormattedMessage id="common.cancel" /></Button><Button disabled={!slug.trim() || !hasName || !issuerDisplayValid || logoUploading || save.isPending} onClick={() => save.mutate()}><FormattedMessage id="common.save" /></Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

@@ -96,7 +96,10 @@ export async function getIssuerDefinition({
 export async function createIssuerDefinition({
   tenantId,
   ...data
-}: Omit<IssuerDefinition, "id" | "tenantId"> & { tenantId?: string }) {
+}: Omit<IssuerDefinition, "id" | "tenantId" | "issuerDisplay"> & {
+  issuerDisplay?: IssuerDisplayConfig[];
+  tenantId?: string;
+}) {
   const displayName = Object.values(data.displayName).find((name) => name.trim());
   data.slug = slugify(displayName ?? "", {
     strict: true,
