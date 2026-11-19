@@ -101,7 +101,7 @@ jobs:
   # ---------------------------------------------------------------------------
 
   build-signer-interface:
-    name: Build native signing crypto
+    name: Build native signing artifacts
     runs-on: ubuntu-latest
     container: rust:1-bookworm
     permissions:
@@ -111,7 +111,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Build and stage signer interface
+      - name: Build and stage native signing artifacts
         uses: ./.github/actions/build-signer-interface
 
   # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ jobs:
       - name: Cache Maven repository
         uses: ./.github/actions/cache-maven
 
-      - name: Install signer interface
+      - name: Install native signing artifacts
         uses: ./.github/actions/install-signer-interface
 
       - name: Build signing adapters
@@ -198,7 +198,7 @@ jobs:
       - name: Cache Maven repository
         uses: ./.github/actions/cache-maven
 
-      - name: Install signer interface
+      - name: Install native signing artifacts
         uses: ./.github/actions/install-signer-interface
 
       - name: Build signing adapters
@@ -256,7 +256,7 @@ jobs:
       - name: Cache Maven repository
         uses: ./.github/actions/cache-maven
 
-      - name: Install signer interface
+      - name: Install native signing artifacts
         uses: ./.github/actions/install-signer-interface
 
       - name: Build signing adapters
@@ -315,7 +315,7 @@ jobs:
       - name: Cache Maven repository
         uses: ./.github/actions/cache-maven
 
-      - name: Install signer interface
+      - name: Install native signing artifacts
         uses: ./.github/actions/install-signer-interface
 
       - name: Set release version

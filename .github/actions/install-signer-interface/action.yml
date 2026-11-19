@@ -1,25 +1,23 @@
 # SPDX-FileCopyrightText: 2026 Ubique Innovation AG and Heidi contributors
 # SPDX-License-Identifier: Apache-2.0
 
-name: Install signer interface
+name: Install native signing artifacts
 description: >
-  Installs the artifact staged by the build-signer-interface action into the
-  runner's local Maven repository. heidi-software-signerinterface is not
-  published to any remote repository, so every Maven reactor that depends on it
-  (heidi-platform-api via heidi-entity-service, heidi-issuer-backend via
-  heidi-issuer-service, and heidi-verifier-backend via the shared signing client)
-  needs this before it can resolve its dependencies.
+  Installs the signer interface and PKI JVM artifacts staged by the
+  build-signer-interface action into the runner's local Maven repository. These
+  artifacts are not published to a remote repository, so Maven reactors that
+  depend on them need this before they can resolve their dependencies.
 
 inputs:
   artifact-name:
     description: Name of the artifact uploaded by build-signer-interface.
     required: false
-    default: signer-interface-m2
+    default: native-signing-m2
 
 runs:
   using: composite
   steps:
-    - name: Download signer interface artifacts
+    - name: Download native signing artifacts
       uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.artifact-name }}
@@ -31,3 +29,5 @@ runs:
         set -euo pipefail
         mkdir -p "$GITHUB_WORKSPACE/.m2repo/org"
         cp -r signer-m2/heidiverse "$GITHUB_WORKSPACE/.m2repo/org/"
+        test -s "$GITHUB_WORKSPACE/.m2repo/org/heidiverse/heidi-pki-x509-jvm/0.1.0/heidi-pki-x509-jvm-0.1.0.jar"
+        test -s "$GITHUB_WORKSPACE/.m2repo/org/heidiverse/heidi-pki-x509-jvm/0.1.0/heidi-pki-x509-jvm-0.1.0.pom"
