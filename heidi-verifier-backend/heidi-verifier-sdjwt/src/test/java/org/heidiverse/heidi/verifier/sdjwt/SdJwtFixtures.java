@@ -162,6 +162,22 @@ final class SdJwtFixtures {
         return issue(NONCE, AUDIENCE, true, false, true, false);
     }
 
+    /** A credential valid now without the optional {@code iat}, like the German PID. */
+    String issueWithoutIssuedAt() throws Exception {
+        return issue(NONCE, AUDIENCE, true, false, true, true, IssuedAt.OMITTED);
+    }
+
+    /** A credential otherwise valid now whose {@code iat} lies an hour in the future. */
+    String issueWithFutureIssuedAt() throws Exception {
+        return issue(NONCE, AUDIENCE, true, false, true, true, IssuedAt.FUTURE);
+    }
+
+    private enum IssuedAt {
+        PAST,
+        OMITTED,
+        FUTURE
+    }
+
     private String issue(
             final String nonce,
             final String audience,
@@ -179,9 +195,33 @@ final class SdJwtFixtures {
             final boolean includeKeyId,
             final boolean includeCertificateChain)
             throws Exception {
+        return issue(
+                nonce,
+                audience,
+                validKeyBinding,
+                expired,
+                includeKeyId,
+                includeCertificateChain,
+                IssuedAt.PAST);
+    }
+
+    private String issue(
+            final String nonce,
+            final String audience,
+            final boolean validKeyBinding,
+            final boolean expired,
+            final boolean includeKeyId,
+            final boolean includeCertificateChain,
+            final IssuedAt issuedAtMode)
+            throws Exception {
 
         final var now = Instant.now();
-        final var issuedAt = expired ? now.minus(2, ChronoUnit.HOURS) : now.minus(1, ChronoUnit.MINUTES);
+        final var issuedAt =
+                switch (issuedAtMode) {
+                    case FUTURE -> now.plus(1, ChronoUnit.HOURS);
+                    case PAST, OMITTED ->
+                            expired ? now.minus(2, ChronoUnit.HOURS) : now.minus(1, ChronoUnit.MINUTES);
+                };
         final var expiresAt = expired ? now.minus(1, ChronoUnit.HOURS) : now.plus(1, ChronoUnit.HOURS);
 
         final var digest = MessageDigest.getInstance("SHA-256");
@@ -194,10 +234,12 @@ final class SdJwtFixtures {
         disclosures.add(familyName);
         disclosures.add(over18);
 
+        final var claimsBuilder = new JWTClaimsSet.Builder().issuer(ISSUER);
+        if (issuedAtMode != IssuedAt.OMITTED) {
+            claimsBuilder.issueTime(Date.from(issuedAt));
+        }
         final var claims =
-                new JWTClaimsSet.Builder()
-                        .issuer(ISSUER)
-                        .issueTime(Date.from(issuedAt))
+                claimsBuilder
                         .expirationTime(Date.from(expiresAt))
                         .claim(SdJwtUtil.VERIFIABLE_CREDENTIAL_TYPE, VCT)
                         .claim(

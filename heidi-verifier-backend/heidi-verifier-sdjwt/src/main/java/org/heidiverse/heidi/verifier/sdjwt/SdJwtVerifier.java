@@ -18,6 +18,7 @@ import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.util.X509CertUtils;
 import com.nimbusds.jwt.*;
 import com.nimbusds.jwt.proc.BadJWTException;
+import com.nimbusds.jwt.proc.DefaultJWTClaimsVerifier;
 
 import org.kapunsdk.crypto.jwt.Jwt;
 
@@ -118,7 +119,6 @@ public class SdJwtVerifier {
                         Map.of(),
                         Set.of(
                                 JWTClaimNames.ISSUER,
-                                JWTClaimNames.ISSUED_AT,
                                 JWTClaimNames.EXPIRATION_TIME,
                                 SdJwtUtil.CONFIRMATION_KEY),
                         SdJwtUtil.getDefaultReservedClaimNames(),
@@ -408,6 +408,7 @@ public class SdJwtVerifier {
 
         // Validate recreated JWT payload (some validity claims may be selectively disclosed)
         validateJwtClaims(payload, exactClaims, effectiveRequiredClaims);
+        validateIssuedAt(payload);
 
         if (requireCryptographicKeyBinding && verifyKeyBinding) {
             // Verify holder key binding JWT
@@ -817,6 +818,30 @@ public class SdJwtVerifier {
             claimsVerifier.verify(JWTClaimsSet.parse(payload), null);
         } catch (BadJWTException | ParseException e) {
             throw new InvalidSdJwtException("Failed to validate SD-JWT claims - " + e.getMessage());
+        }
+    }
+
+    /**
+     * Rejects a credential whose optional {@code iat} lies in the future.
+     *
+     * <p>Nimbus only checks {@code exp} and {@code nbf}, so once {@code iat} is no longer required
+     * nothing else would look at its value. The same clock skew as for {@code exp}/{@code nbf}
+     * applies. Not used for the KB-JWT, whose {@code iat} is required and checked separately.
+     */
+    private void validateIssuedAt(final Map<String, Object> payload) throws InvalidSdJwtException {
+        final Date issuedAt;
+        try {
+            issuedAt = JWTClaimsSet.parse(payload).getIssueTime();
+        } catch (ParseException e) {
+            throw new InvalidSdJwtException("Failed to validate SD-JWT claims - invalid 'iat'", e);
+        }
+        if (issuedAt == null) return;
+        final Instant now = customCurrentTimeJwt != null ? customCurrentTimeJwt : Instant.now();
+        final Instant latestAccepted =
+                now.plusSeconds(DefaultJWTClaimsVerifier.DEFAULT_MAX_CLOCK_SKEW_SECONDS);
+        if (issuedAt.toInstant().isAfter(latestAccepted)) {
+            throw new InvalidSdJwtException(
+                    "Failed to validate SD-JWT claims - 'iat' is in the future");
         }
     }
 

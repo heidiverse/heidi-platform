@@ -182,6 +182,36 @@ class SdJwtVerifierTest {
                                         SdJwtFixtures.AUDIENCE));
     }
 
+    /** SD-JWT VC and the EUDI PID Rulebook make 'iat' optional; the German PID omits it. */
+    @Test
+    void acceptsCredentialWithoutIssuedAt() {
+        assertDoesNotThrow(
+                () ->
+                        SdJwtVerifier.getDefaultEudiVcVerifier(null)
+                                .withPredefinedIssuerJwks(Map.of(SdJwtFixtures.ISSUER, issuer))
+                                .parseAndVerify(
+                                        fixtures.issueWithoutIssuedAt(),
+                                        SdJwtFixtures.NONCE,
+                                        SdJwtFixtures.AUDIENCE));
+    }
+
+    /** An optional 'iat' is still validated when present. */
+    @Test
+    void rejectsCredentialIssuedInTheFuture() {
+        final var exception =
+                assertThrows(
+                        InvalidSdJwtException.class,
+                        () ->
+                                SdJwtVerifier.getDefaultEudiVcVerifier(null)
+                                        .withPredefinedIssuerJwks(
+                                                Map.of(SdJwtFixtures.ISSUER, issuer))
+                                        .parseAndVerify(
+                                                fixtures.issueWithFutureIssuedAt(),
+                                                SdJwtFixtures.NONCE,
+                                                SdJwtFixtures.AUDIENCE));
+        assertTrue(exception.getMessage().contains("'iat' is in the future"));
+    }
+
     @Test
     void invalidNonceTest() {
         assertThrows(
