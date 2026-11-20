@@ -98,12 +98,13 @@ public class SdJwtService implements CredentialFormatService {
             X509CertVerifier fallbackX509CertVerifier)
             throws VpVerificationException {
         try {
+            var requestX509Verifier = trustVerifierFactory.x509Verifier(request);
             var claims = sdJwtVerifier.parseAndVerify(
                     vpToken, requireCryptographicKeyBinding, nonce, clientId, transactionData,
-                    trustVerifierFactory.x509Verifier(request),
+                    requestX509Verifier,
                     trustVerifierFactory.didTrustVerifier(request),
                     fallbackX509CertVerifier);
-            statusListVerifier.verify(vpToken, claims);
+            statusListVerifier.verify(vpToken, claims, requestX509Verifier);
             return claims;
         } catch (InvalidSdJwtException | IllegalArgumentException e) {
             throw new VpVerificationException("Failed to verify vp token: " + e.getMessage());

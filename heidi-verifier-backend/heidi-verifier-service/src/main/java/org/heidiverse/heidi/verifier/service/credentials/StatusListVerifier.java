@@ -9,6 +9,7 @@ import com.nimbusds.jose.util.X509CertUtils;
 
 import org.heidiverse.heidi.verifier.model.exception.VpVerificationException;
 import org.heidiverse.heidi.verifier.sdjwt.IssuerWebKeyManager;
+import org.heidiverse.heidi.verifier.sdjwt.model.X509CertVerifier;
 import org.heidiverse.heidi.verifier.sdjwt.util.DidUtil;
 import org.heidiverse.heidi.verifier.sdjwt.util.JwsUtil;
 import org.heidiverse.heidi.verifier.sdjwt.util.KapunJwtUtil;
@@ -67,6 +68,23 @@ public class StatusListVerifier {
 
     public void verify(String presentation, Map<String, Object> credentialClaims)
             throws VpVerificationException {
+        verify(presentation, credentialClaims, null);
+    }
+
+    /**
+     * Verifies the credential's status entry.
+     *
+     * @param trustAnchors the request's identity trust anchors (EUDI trust framework), or {@code
+     *     null}. When present, the status list token must be signed by a certificate chaining to
+     *     one of them - the Status Issuer may use a different CA than the credential issuer
+     *     (draft-ietf-oauth-status-list, section 11.3). The anchors are shared with credential
+     *     verification for now.
+     */
+    public void verify(
+            String presentation,
+            Map<String, Object> credentialClaims,
+            X509CertVerifier trustAnchors)
+            throws VpVerificationException {
         var reference = reference(credentialClaims);
         if (reference == null) return;
 
@@ -79,7 +97,8 @@ public class StatusListVerifier {
             var signedClaims = KapunJwtUtil.payload(credential);
             var token = token(reference.uri());
             var statusList = KapunJwtUtil.parse(token);
-            validateToken(statusList, token, credentialHeader, signedClaims, reference.uri());
+            validateToken(
+                    statusList, token, credentialHeader, signedClaims, reference.uri(), trustAnchors);
             var statusClaims = KapunJwtUtil.payload(statusList);
             cache(reference.uri(), token, statusClaims);
 
@@ -167,14 +186,17 @@ public class StatusListVerifier {
             String compact,
             Map<String, Object> credentialHeader,
             Map<String, ?> credentialClaims,
-            URI uri)
+            URI uri,
+            X509CertVerifier trustAnchors)
         throws Exception {
         var tokenHeader = KapunJwtUtil.header(token);
         var algorithm = JWSAlgorithm.parse(Objects.toString(tokenHeader.get("alg"), ""));
         if (!JWSAlgorithm.Family.SIGNATURE.contains(algorithm)) {
             throw invalid("Status list token must use an asymmetric signature");
         }
-        var key = verificationKey(tokenHeader, credentialHeader, credentialClaims);
+        var key = trustAnchors != null
+                ? anchoredVerificationKey(tokenHeader, credentialHeader, trustAnchors)
+                : verificationKey(tokenHeader, credentialHeader, credentialClaims);
         if (key == null) throw invalid("Status list signing key could not be resolved");
         if (!JwsUtil.verify(
                 compact,
@@ -199,6 +221,80 @@ public class StatusListVerifier {
         }
         if (!(claims.get("status_list") instanceof Map<?, ?>)) {
             throw invalid("Status list token is missing 'status_list'");
+        }
+    }
+
+    /**
+     * Resolves the status list signing key under configured trust anchors (EUDI trust framework).
+     * The token is accepted when any of these holds (draft-ietf-oauth-status-list-21, section
+     * 11.3):
+     *
+     * <ol>
+     *   <li>Same key as the credential: the same leaf certificate in {@code x5c}, or no {@code x5c}
+     *       and the same {@code kid}.
+     *   <li>Same issuing CA: the token's chain is issued by a CA certificate from the credential's
+     *       {@code x5c}.
+     *   <li>Its own chain is anchored in the configured trust anchors.
+     * </ol>
+     */
+    private JWK anchoredVerificationKey(
+            Map<String, Object> tokenHeader,
+            Map<String, Object> credentialHeader,
+            X509CertVerifier trustAnchors)
+            throws Exception {
+        var tokenChain = certificates(tokenHeader);
+        var credentialChain = certificates(credentialHeader);
+        var anchoredCredentialChain = !credentialChain.isEmpty()
+                        && anchored(trustAnchors, credentialChain)
+                ? credentialChain
+                : List.<X509Certificate>of();
+
+        if (tokenChain.isEmpty()) {
+            var keyId = tokenHeader.get("kid");
+            if (keyId != null
+                    && Objects.equals(keyId, credentialHeader.get("kid"))
+                    && !anchoredCredentialChain.isEmpty()) {
+                return JWK.parse(anchoredCredentialChain.getFirst());
+            }
+            throw invalid(
+                    "Status list token must carry an x5c chain anchored in the configured identity"
+                            + " trust anchors");
+        }
+
+        var signer = tokenChain.getFirst();
+        if (!anchoredCredentialChain.isEmpty() && signer.equals(anchoredCredentialChain.getFirst())) {
+            return JWK.parse(signer);
+        }
+        for (var issuingCa : issuingCas(anchoredCredentialChain)) {
+            if (anchored(new TrustedRootX509CertVerifier(List.of(issuingCa)), tokenChain)) {
+                return JWK.parse(signer);
+            }
+        }
+        if (anchored(trustAnchors, tokenChain)) {
+            return JWK.parse(signer);
+        }
+        throw invalid(
+                "Status list token certificate chain is not anchored in the configured"
+                        + " identity trust anchors");
+    }
+
+    /** CA certificates of a validated chain, excluding its leaf (the credential signer). */
+    private static List<X509Certificate> issuingCas(List<X509Certificate> chain) {
+        if (chain.size() < 2) return List.of();
+        return chain.subList(1, chain.size()).stream()
+                .filter(certificate -> certificate.getBasicConstraints() >= 0)
+                .filter(certificate -> certificate.getKeyUsage() != null
+                        && certificate.getKeyUsage().length > 5
+                        && certificate.getKeyUsage()[5])
+                .toList();
+    }
+
+    /** Whether {@code chain} is anchored; a missing name match counts as not anchored. */
+    private static boolean anchored(X509CertVerifier anchors, List<X509Certificate> chain) {
+        try {
+            return anchors.validCertChain(chain);
+        } catch (RuntimeException notAnchored) {
+            return false;
         }
     }
 
